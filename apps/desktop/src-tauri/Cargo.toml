@@ -1,0 +1,28 @@
+[package]
+name = "swissmath-desktop"
+version = "0.5.0"
+description = "Offline desktop interface for SwissMath Core"
+authors = ["SwissMath"]
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+build = "build.rs"
+
+[lib]
+name = "swissmath_desktop_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[[bin]]
+name = "swissmath-desktop"
+path = "src/main.rs"
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+swissmath-core = { path = "../../../crates/core" }
+tauri = { version = "2.11.5", features = [] }
+
+[build-dependencies]
+tauri-build = { version = "2.6.3", features = [] }
+
+[lints]
+workspace = true

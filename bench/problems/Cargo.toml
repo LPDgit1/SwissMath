@@ -1,0 +1,13 @@
+[package]
+name = "swissmath-problems"
+version = "0.5.0"
+publish = false
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+swissmath-core = { path = "../../crates/core" }
+
+[lints]
+workspace = true

@@ -1,0 +1,16 @@
+/target/
+/work/
+**/target/
+apps/desktop/src-tauri/work/
+apps/desktop/src-tauri/gen/
+/release/
+/dist/
+**/dist/
+**/pkg/
+node_modules/
+.env
+.env.*
+.idea/
+.vscode/
+Thumbs.db
+.DS_Store

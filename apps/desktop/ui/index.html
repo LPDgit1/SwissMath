@@ -1,0 +1,327 @@
+<!doctype html>
+<html lang="it">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#0b1220" />
+    <title>SwissMath Core</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <aside class="sidebar">
+        <div class="brand">
+          <div class="brand-mark" aria-hidden="true">Σ</div>
+          <div>
+            <div class="brand-name">SwissMath</div>
+            <div class="brand-version">Core · v0.5</div>
+          </div>
+        </div>
+
+        <nav class="main-nav" aria-label="Strumenti">
+          <button class="nav-item active" data-screen="modular" type="button">
+            <span class="nav-icon" aria-hidden="true">↗</span>
+            <span><strong>Calcolo modulare</strong><small>Operazioni esatte</small></span>
+          </button>
+          <button class="nav-item" data-screen="crt" type="button">
+            <span class="nav-icon" aria-hidden="true">⊕</span>
+            <span><strong>CRT</strong><small>Congruenze compatibili</small></span>
+          </button>
+          <button class="nav-item" data-screen="residues" type="button">
+            <span class="nav-icon" aria-hidden="true">◈</span>
+            <span><strong>Insiemi di residui</strong><small>Filtri e confronti</small></span>
+          </button>
+          <button class="nav-item" data-screen="integers" type="button">
+            <span class="nav-icon" aria-hidden="true">π</span>
+            <span><strong>Numeri interi</strong><small>Primi e fattori</small></span>
+          </button>
+          <button class="nav-item" data-screen="quadratic" type="button">
+            <span class="nav-icon" aria-hidden="true">√</span>
+            <span><strong>Residui quadratici</strong><small>Simboli e radici</small></span>
+          </button>
+          <button class="nav-item" data-screen="congruences" type="button">
+            <span class="nav-icon" aria-hidden="true">≡</span>
+            <span><strong>Congruenze</strong><small>Solver e sistemi</small></span>
+          </button>
+          <button class="nav-item" data-screen="sieve" type="button">
+            <span class="nav-icon" aria-hidden="true">⊢</span>
+            <span><strong>Filtro modulare</strong><small>Ricerca su intervalli</small></span>
+          </button>
+        </nav>
+
+        <div class="sidebar-footer">
+          <div class="offline-pill"><span class="status-dot"></span> Esecuzione locale</div>
+          <p>Nessun dato lascia questo computer.</p>
+        </div>
+      </aside>
+
+      <main class="content">
+        <header class="topbar">
+          <div>
+            <div class="eyebrow">LABORATORIO MATEMATICO</div>
+            <h1 id="page-title">Calcolo modulare</h1>
+          </div>
+          <div class="topbar-note"><span class="spark" aria-hidden="true">✦</span> Risultati esatti, senza approssimazioni</div>
+        </header>
+
+        <div id="result-actions" class="result-actions hidden" aria-live="polite">
+          <div class="result-actions-copy"><span class="metric-label">Preflight risultato</span><strong id="result-actions-context">Nessun risultato selezionato</strong></div>
+          <div class="result-actions-buttons"><button id="save-result" class="secondary-button" type="button">Salva risultato</button><button id="print-result" class="secondary-button" type="button">Stampa / PDF</button></div>
+        </div>
+
+        <section id="screen-modular" class="screen active" aria-labelledby="page-title">
+          <div class="intro-row">
+            <div>
+              <p class="lead">Calcola rapidamente somme, differenze, prodotti, potenze e inversi in <span class="math">ℤ/mℤ</span>.</p>
+              <p class="hint">I valori vengono ridotti automaticamente nel modulo indicato.</p>
+            </div>
+            <div class="formula-chip">a · b <span>mod</span> m</div>
+          </div>
+
+          <form id="modular-form" class="workspace-card">
+            <div class="card-heading"><div><span class="step-badge">01</span><h2>Imposta i valori</h2></div><span class="required-note">* Campi richiesti</span></div>
+            <div class="field-grid four">
+              <label class="field"><span>Modulo <em>*</em></span><input name="modulus" type="text" inputmode="numeric" value="7" required /><small>Un intero positivo</small></label>
+              <label class="field"><span>Valore a <em>*</em></span><input name="a" type="text" inputmode="numeric" value="3" required /><small>Residuo normalizzato</small></label>
+              <label class="field"><span>Valore b <em>*</em></span><input name="b" type="text" inputmode="numeric" value="5" required /><small>Residuo normalizzato</small></label>
+              <label class="field"><span>Esponente</span><input name="exponent" type="text" inputmode="numeric" value="4" required /><small>Per calcolare a<sup>n</sup></small></label>
+            </div>
+            <button class="primary-button" type="submit"><span>Calcola</span><span class="button-arrow">→</span></button>
+          </form>
+
+          <div id="modular-result" class="result-area hidden" aria-live="polite">
+            <div class="result-heading"><div><span class="step-badge success">02</span><h2>Risultati</h2></div><span id="modular-context" class="context-label"></span></div>
+            <div class="metric-grid">
+              <article class="metric-card accent"><span class="metric-label">Somma</span><strong id="result-sum">—</strong><span class="metric-formula">a + b</span></article>
+              <article class="metric-card"><span class="metric-label">Differenza</span><strong id="result-difference">—</strong><span class="metric-formula">a − b</span></article>
+              <article class="metric-card"><span class="metric-label">Prodotto</span><strong id="result-product">—</strong><span class="metric-formula">a · b</span></article>
+              <article class="metric-card"><span class="metric-label">Potenza</span><strong id="result-power">—</strong><span class="metric-formula">a<sup>n</sup></span></article>
+              <article class="metric-card wide"><span class="metric-label">Inverso di a</span><strong id="result-inverse">—</strong><span id="inverse-note" class="metric-formula">esiste se gcd(a, m) = 1</span></article>
+            </div>
+          </div>
+        </section>
+
+        <section id="screen-crt" class="screen" aria-labelledby="page-title">
+          <div class="intro-row">
+            <div>
+              <p class="lead">Risolvi due congruenze simultanee con il teorema cinese del resto generalizzato.</p>
+              <p class="hint">Se non esiste una soluzione comune, SwissMath lo segnala senza trattarlo come errore.</p>
+            </div>
+            <div class="formula-chip">x ≡ a <span>mod</span> m</div>
+          </div>
+
+          <form id="crt-form" class="workspace-card">
+            <div class="card-heading"><div><span class="step-badge">01</span><h2>Inserisci le congruenze</h2></div><span class="required-note">I residui vengono normalizzati</span></div>
+            <div class="crt-equations">
+              <div class="equation-block"><div class="equation-title"><span class="equation-dot">A</span> Prima congruenza</div><div class="field-grid two"><label class="field"><span>Residuo a <em>*</em></span><input name="residueA" type="text" inputmode="numeric" value="2" required /></label><label class="field"><span>Modulo m <em>*</em></span><input name="modulusA" type="text" inputmode="numeric" value="3" required /></label></div><div class="equation-preview">x ≡ <b data-preview="residueA">2</b> <span>mod</span> <b data-preview="modulusA">3</b></div></div>
+              <div class="equation-join" aria-hidden="true">+</div>
+              <div class="equation-block"><div class="equation-title"><span class="equation-dot violet">B</span> Seconda congruenza</div><div class="field-grid two"><label class="field"><span>Residuo b <em>*</em></span><input name="residueB" type="text" inputmode="numeric" value="3" required /></label><label class="field"><span>Modulo n <em>*</em></span><input name="modulusB" type="text" inputmode="numeric" value="5" required /></label></div><div class="equation-preview">x ≡ <b data-preview="residueB">3</b> <span>mod</span> <b data-preview="modulusB">5</b></div></div>
+            </div>
+            <button class="primary-button" type="submit"><span>Componi con CRT</span><span class="button-arrow">→</span></button>
+          </form>
+
+          <div id="crt-result" class="result-area hidden" aria-live="polite">
+            <div class="result-heading"><div><span class="step-badge success">02</span><h2>Risultato CRT</h2></div><span id="crt-status" class="status-label"></span></div>
+            <div class="crt-result-card"><div class="crt-result-symbol">x</div><div class="crt-result-text"><span id="crt-message">—</span><strong id="crt-equation">—</strong></div></div>
+          </div>
+        </section>
+
+        <section id="screen-residues" class="screen" aria-labelledby="page-title">
+          <div class="intro-row">
+            <div>
+              <p class="lead">Materializza e confronta due insiemi di residui modulo <span class="math">m</span>.</p>
+              <p class="hint">Inserisci valori separati da virgola. I duplicati vengono eliminati automaticamente.</p>
+            </div>
+            <div class="formula-chip">A ⊆ <span>ℤ/mℤ</span></div>
+          </div>
+
+          <form id="residues-form" class="workspace-card">
+            <div class="card-heading"><div><span class="step-badge">01</span><h2>Definisci gli insiemi</h2></div><span class="required-note">Moduli GUI fino a 2.000.000</span></div>
+            <div class="field-grid one"><label class="field"><span>Modulo comune <em>*</em></span><input name="modulus" type="text" inputmode="numeric" value="12" required /><small>Il modulo deve essere uguale per A e B</small></label></div>
+            <div class="field-grid two residue-inputs"><label class="field"><span>Insieme A</span><textarea name="left" rows="3" placeholder="es. 0, 1, 4, 9">0, 1, 4, 9</textarea><small>Valori separati da virgola</small></label><label class="field"><span>Insieme B</span><textarea name="right" rows="3" placeholder="es. 1, 2, 4, 8">1, 2, 4, 8</textarea><small>Necessario per le operazioni binarie</small></label></div>
+            <div class="operation-row"><label class="field operation-field"><span>Operazione</span><select name="operation"><option value="intersection">Intersezione A ∩ B</option><option value="union">Unione A ∪ B</option><option value="difference">Differenza A \ B</option><option value="complement">Complemento di A</option><option value="intersection_count">Conta A ∩ B</option><option value="intersects">A e B si intersecano?</option><option value="is_subset_of">A è sottoinsieme di B?</option></select></label><button class="primary-button compact" type="submit"><span>Esegui operazione</span><span class="button-arrow">→</span></button></div>
+          </form>
+
+          <div id="residues-result" class="result-area hidden" aria-live="polite">
+            <div class="result-heading"><div><span class="step-badge success">02</span><h2>Risultato dell'operazione</h2></div><span id="residues-context" class="context-label"></span></div>
+            <div class="residue-result-card"><div class="residue-summary"><div><span class="metric-label">Cardinalità</span><strong id="residue-len">—</strong></div><div id="residue-query-wrap" class="query-answer hidden"><span class="metric-label">Risposta</span><strong id="residue-query">—</strong></div></div><div class="result-message" id="residue-message">—</div><div id="residue-values" class="residue-values"></div></div>
+          </div>
+        </section>
+
+        <section id="screen-integers" class="screen" aria-labelledby="page-title">
+          <div class="intro-row">
+            <div>
+              <p class="lead">Analizza un intero con una sola richiesta: primalità, fattorizzazione, φ(n) e λ(n) quando il dominio lo consente.</p>
+              <p class="hint">Nel dominio u64 la fattorizzazione viene calcolata una sola volta e riutilizzata per le funzioni derivate; oltre u64 resta disponibile la sola primalità.</p>
+            </div>
+            <div class="formula-chip">n = <span>∏</span> p<sup>e</sup></div>
+          </div>
+
+          <form id="integer-analysis-form" class="workspace-card">
+            <div class="card-heading"><div><span class="step-badge">01</span><h2>Analizza un numero</h2></div><span class="required-note">Interi decimali non negativi</span></div>
+            <div class="field-grid one"><label class="field"><span>Numero n <em>*</em></span><input name="n" type="text" inputmode="numeric" value="360" required /><small>0 è ammesso per mostrare perché la fattorizzazione non è definita</small></label></div>
+            <button class="primary-button" type="submit"><span>Analizza</span><span class="button-arrow">→</span></button>
+          </form>
+
+          <div id="integer-analysis-result" class="result-area hidden" aria-live="polite">
+            <div class="result-heading"><div><span class="step-badge success">02</span><h2>Analisi del numero</h2></div><span id="integer-analysis-context" class="context-label"></span></div>
+            <div class="integer-analysis-card residue-result-card">
+              <div class="integer-analysis-grid">
+                <article class="metric-card accent"><span class="metric-label">Tipo</span><strong id="integer-type">—</strong></article>
+                <article class="metric-card"><span class="metric-label">Primalità</span><strong id="integer-primality">—</strong></article>
+                <article class="metric-card"><span class="metric-label">φ(n)</span><strong id="integer-phi">—</strong></article>
+                <article class="metric-card"><span class="metric-label">λ(n)</span><strong id="integer-lambda">—</strong></article>
+              </div>
+              <div class="result-message">Fattorizzazione</div>
+              <div id="integer-factorization" class="factorization-display">—</div>
+              <div id="integer-factorization-note" class="result-note"></div>
+              <div id="integer-analysis-note" class="result-note"></div>
+            </div>
+          </div>
+
+          <form id="integer-order-form" class="workspace-card integer-order-card">
+            <div class="card-heading"><div><span class="step-badge">03</span><h2>Ordine moltiplicativo</h2></div><span class="required-note">Usa il modulo n selezionato</span></div>
+            <div class="field-grid two">
+              <label class="field"><span>Base a <em>*</em></span><input name="a" type="text" inputmode="numeric" value="3" required /><small>Ridotta automaticamente modulo n</small></label>
+              <div class="field"><span>Modulo n</span><div id="integer-current-n" class="integer-current-value" aria-live="polite">360</div><small>Modifica n nel riquadro sopra e analizzalo di nuovo</small></div>
+            </div>
+            <button class="primary-button compact" type="submit"><span>Calcola ordine</span><span class="button-arrow">→</span></button>
+          </form>
+
+          <div id="integer-order-result" class="result-area hidden" aria-live="polite">
+            <div class="result-heading"><div><span class="step-badge success">04</span><h2>Risultato ordine</h2></div><span id="integer-order-message" class="context-label"></span></div>
+            <div class="crt-result-card integer-order-result-card"><div class="crt-result-symbol">a</div><div class="crt-result-text"><span>Ordine moltiplicativo</span><strong id="integer-order-equation">—</strong></div></div>
+          </div>
+        </section>
+
+        <section id="screen-quadratic" class="screen" aria-labelledby="page-title">
+          <div class="intro-row">
+            <div>
+              <p class="lead">Calcola simboli di Jacobi/Legendre e risolvi radici quadrate modulari nel dominio u64.</p>
+              <p class="hint">Per moduli composti il solutore v0.5 supporta soltanto i casi in cui a e n sono coprimi.</p>
+            </div>
+            <div class="formula-chip">x² ≡ a <span>mod</span> n</div>
+          </div>
+
+          <form id="quadratic-symbol-form" class="workspace-card">
+            <div class="card-heading"><div><span class="step-badge">01</span><h2>Simboli</h2></div><span class="required-note">Modulo dispari per Jacobi</span></div>
+            <div class="field-grid two">
+              <label class="field"><span>Valore a <em>*</em></span><input name="a" type="text" inputmode="numeric" value="5" required /><small>Accetta anche valori negativi</small></label>
+              <label class="field"><span>Modulo n <em>*</em></span><input name="modulus" type="text" inputmode="numeric" value="11" required /><small>Jacobi: intero positivo dispari</small></label>
+            </div>
+            <button class="primary-button compact" type="submit"><span>Calcola simbolo</span><span class="button-arrow">→</span></button>
+          </form>
+
+          <div id="quadratic-symbol-result" class="result-area hidden" aria-live="polite">
+            <div class="result-heading"><div><span class="step-badge success">02</span><h2>Simboli quadratici</h2></div><span id="quadratic-symbol-context" class="context-label"></span></div>
+            <div class="metric-grid quadratic-metric-grid">
+              <article class="metric-card accent"><span class="metric-label">Jacobi (a / n)</span><strong id="quadratic-jacobi">—</strong></article>
+              <article class="metric-card"><span class="metric-label">Legendre (a / p)</span><strong id="quadratic-legendre">—</strong></article>
+            </div>
+            <div id="quadratic-symbol-message" class="result-message">—</div>
+          </div>
+
+          <form id="quadratic-roots-form" class="workspace-card quadratic-roots-card">
+            <div class="card-heading"><div><span class="step-badge">03</span><h2>Radici modulari</h2></div><span class="required-note">Anteprima massima: 100 radici</span></div>
+            <div class="field-grid two">
+              <label class="field"><span>Valore a <em>*</em></span><input name="a" type="text" inputmode="numeric" value="10" required /><small>Accetta anche valori negativi</small></label>
+              <label class="field"><span>Modulo n <em>*</em></span><input name="modulus" type="text" inputmode="numeric" value="13" required /><small>Primo o composto nel dominio u64</small></label>
+            </div>
+            <button class="primary-button compact" type="submit"><span>Trova radici</span><span class="button-arrow">→</span></button>
+          </form>
+
+          <div id="quadratic-roots-result" class="result-area hidden" aria-live="polite">
+            <div class="result-heading"><div><span class="step-badge success">04</span><h2>Radici modulari</h2></div><span id="quadratic-roots-context" class="context-label"></span></div>
+            <div class="residue-result-card">
+              <div class="residue-summary"><div><span class="metric-label">Esistono</span><strong id="quadratic-root-exists">—</strong></div><div><span class="metric-label">Numero esatto di radici</span><strong id="quadratic-root-count">—</strong></div></div>
+              <div id="quadratic-root-message" class="result-message">—</div>
+              <div id="quadratic-roots" class="residue-values"></div>
+              <div id="quadratic-roots-note" class="result-note"></div>
+            </div>
+          </div>
+        </section>
+
+        <section id="screen-congruences" class="screen" aria-labelledby="page-title">
+          <div class="intro-row">
+            <div>
+              <p class="lead">Risolvi congruenze lineari e sistemi esatti senza materializzare inutilmente tutte le soluzioni.</p>
+              <p class="hint">La spiegazione usa i valori prodotti dal solver Rust; i residui vengono mostrati solo quando sono pochi.</p>
+            </div>
+            <div class="formula-chip">a · x ≡ b <span>mod</span> m</div>
+          </div>
+
+          <form id="linear-form" class="workspace-card">
+            <div class="card-heading"><div><span class="step-badge">01</span><h2>Singola congruenza</h2></div><span class="required-note">Interi decimali non negativi</span></div>
+            <div class="field-grid three">
+              <label class="field"><span>Coefficiente a <em>*</em></span><input name="a" type="text" inputmode="numeric" value="14" required /></label>
+              <label class="field"><span>Termine b <em>*</em></span><input name="b" type="text" inputmode="numeric" value="8" required /></label>
+              <label class="field"><span>Modulo m <em>*</em></span><input name="modulus" type="text" inputmode="numeric" value="30" required /></label>
+            </div>
+            <button class="primary-button" type="submit"><span>Risolvi</span><span class="button-arrow">→</span></button>
+          </form>
+
+          <div id="linear-result" class="result-area hidden" aria-live="polite">
+            <div class="result-heading"><div><span class="step-badge success">02</span><h2>Risultato</h2></div><span id="linear-message" class="context-label"></span></div>
+            <div class="linear-result-card">
+              <div class="linear-main"><span class="metric-label">Classe soluzione</span><strong id="linear-equation">—</strong><span id="linear-count" class="linear-count">—</span></div>
+              <div class="linear-facts" id="linear-facts"></div>
+              <div class="linear-residues" id="linear-residues"></div>
+            </div>
+          </div>
+
+          <div class="workspace-card system-card">
+            <div class="card-heading"><div><span class="step-badge">03</span><h2>Sistema di congruenze</h2></div><span class="required-note">Le righe All non restringono il sistema</span></div>
+            <div id="system-rows" class="system-rows"></div>
+            <div class="inline-actions"><button id="system-add" class="secondary-button" type="button">+ aggiungi riga</button><button id="system-submit" class="primary-button compact" type="button"><span>Risolvi sistema</span><span class="button-arrow">→</span></button></div>
+          </div>
+
+          <div id="system-result" class="result-area hidden" aria-live="polite">
+            <div class="result-heading"><div><span class="step-badge success">04</span><h2>Esito del sistema</h2></div><span id="system-message" class="context-label"></span></div>
+            <div class="system-result-card"><strong id="system-equation">—</strong><div id="system-row-summary" class="system-row-summary"></div></div>
+          </div>
+        </section>
+
+        <section id="screen-sieve" class="screen" aria-labelledby="page-title">
+          <div class="intro-row">
+            <div>
+              <p class="lead">Combina filtri di residui e congruenze lineari su un intervallo inclusivo <span class="math">Da ≤ x ≤ A</span>.</p>
+              <p class="hint">Il filtro più selettivo viene scelto come ancora; il risultato conserva solo i primi valori richiesti.</p>
+            </div>
+            <div class="formula-chip">x mod m <span>∈</span> A</div>
+          </div>
+
+          <form id="sieve-form" class="workspace-card">
+            <div class="card-heading"><div><span class="step-badge">01</span><h2>Filtri modulari</h2></div><span class="required-note">Liste separate da virgola</span></div>
+            <div id="sieve-rows" class="sieve-rows"></div>
+            <button id="sieve-add" class="secondary-button" type="button">+ aggiungi filtro</button>
+            <div class="range-grid">
+              <label class="field"><span>Da <em>*</em></span><input name="start" type="text" inputmode="numeric" value="0" required /></label>
+              <label class="field"><span>A <em>*</em></span><input name="end" type="text" inputmode="numeric" value="10000" required /></label>
+              <label class="field"><span>Anteprima</span><input name="preview" type="text" inputmode="numeric" value="50" required /><small>Massimo 1.000 valori</small></label>
+            </div>
+            <button class="primary-button" type="submit"><span>Cerca</span><span class="button-arrow">→</span></button>
+          </form>
+
+          <div id="sieve-result" class="result-area hidden" aria-live="polite">
+            <div class="result-heading"><div><span class="step-badge success">02</span><h2>Risultati del filtro</h2></div><span id="sieve-message" class="context-label"></span></div>
+            <div class="sieve-result-card">
+              <div class="sieve-metrics">
+                <article class="metric-card accent"><span class="metric-label">Valori compatibili</span><strong id="sieve-count">—</strong></article>
+                <article class="metric-card"><span class="metric-label">Percentuale</span><strong id="sieve-percentage">—</strong></article>
+                <article class="metric-card"><span class="metric-label">Filtri attivi</span><strong id="sieve-filter-count">—</strong></article>
+                <article class="metric-card"><span class="metric-label">Intervallo</span><strong id="sieve-range">—</strong></article>
+              </div>
+              <div id="sieve-anchor" class="sieve-anchor"></div>
+              <div class="result-message">Primi risultati</div>
+              <div id="sieve-preview" class="residue-values"></div>
+            </div>
+          </div>
+        </section>
+
+        <div id="toast" class="toast" role="status" aria-live="polite"></div>
+        <footer class="app-footer"><span>SwissMath Core v0.5</span><span>Offline · deterministico · esatto</span></footer>
+      </main>
+    </div>
+    <script src="app.js"></script>
+  </body>
+</html>

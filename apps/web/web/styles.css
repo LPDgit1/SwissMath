@@ -26,6 +26,7 @@ button:disabled, input:disabled, textarea:disabled, select:disabled { cursor: wa
 .brand-mark { width: 39px; height: 39px; display: grid; place-items: center; border-radius: 12px; color: #06131a; background: var(--accent); font-size: 25px; font-weight: 800; box-shadow: 0 8px 25px rgba(65, 224, 187, .2); }
 .brand-name { letter-spacing: .02em; font-size: 17px; font-weight: 750; }
 .brand-version { color: var(--muted); font-size: 11px; margin-top: 3px; }
+.brand-credit { color: var(--muted); font-size: 10px; letter-spacing: .01em; margin-top: 4px; }
 .main-nav { display: grid; gap: 8px; }
 .nav-item { display: flex; align-items: center; gap: 12px; width: 100%; border: 1px solid transparent; border-radius: 13px; color: var(--muted); background: transparent; text-align: left; padding: 12px 11px; transition: .18s ease; }
 .nav-item:hover { color: var(--text); background: rgba(155, 182, 222, .07); }

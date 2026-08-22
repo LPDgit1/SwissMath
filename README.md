@@ -4,6 +4,8 @@ SwissMath is a lightweight computational mathematics toolkit written in Rust,
 focused on fast exact modular arithmetic and computational number theory, with
 desktop and WebAssembly frontends.
 
+By Luca Pezzullo, 2026
+
 ## Try it online
 
 [Open SwissMath Web](https://swissmath.lucapezzullo.chatgpt.site)

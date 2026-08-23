@@ -2,6 +2,7 @@
 
 mod arithmetic;
 mod bitops;
+mod combinatorics;
 mod congruence;
 mod crt;
 mod discovery;
@@ -24,6 +25,10 @@ mod wide_primality;
 pub use arithmetic::{
     BaseConversionError, ExtendedGcd, IntegerRoot, PerfectPower, extended_gcd, format_in_base,
     integer_nth_root, lcm, parse_in_base, perfect_power,
+};
+pub use combinatorics::{
+    CombinatoricsError, binomial_mod_prime, binomial_valuation, factorial_mod_prime,
+    factorial_valuation,
 };
 pub use congruence::{
     LinearCongruence, LinearSolution, LinearSolveResult, solve_linear_congruence,

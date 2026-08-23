@@ -2,19 +2,20 @@ use num_bigint::BigInt;
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use serde_json::{Value, json};
 use swissmath_core::{
-    Congruence, DecimalIntegerAnalysis, DecimalIntegerAnalysisError, DiscreteLogResult,
-    FpLinearSystemSolution, FpMatrix, FpPolynomial, LinearCongruence, LinearSolution,
-    LinearSystemSolution, ModCtx, ModularFilter, ModularFilterBuild, ModularSieve, Modulus,
-    MultiplicativeOrderResult, Polynomial, PrimalityAssessment, PrimeField, QuadraticError,
-    Rational, RationalMatrix, ResidueError, ResidueSet, Valuation, analyze_integer_decimal,
-    continued_fraction, convergents, crt_fold, crt_pair, determinant_bareiss, discrete_log,
-    extended_gcd, factor, find_recurrence, finite_differences, format_in_base, guess_sequence,
-    hermite_normal_form, infer_recurrence_nth_mod_prime, integer_nth_root, interpolate, is_prime,
-    is_primitive_root, jacobi_symbol, lcm, linear_recurrence_nth_mod_prime, modular_square_roots,
-    multiplicative_order, next_prime, nullspace, parse_decimal, parse_in_base, perfect_power,
-    polynomial_gcd, previous_prime, primitive_root, pslq, rank, rational_reconstruct_bounded,
-    rationalize_decimal, rref, smith_normal_form_invariants, solve, solve_linear_congruence,
-    solve_linear_system, valuation,
+    CombinatoricsError, Congruence, DecimalIntegerAnalysis, DecimalIntegerAnalysisError,
+    DiscreteLogResult, FpLinearSystemSolution, FpMatrix, FpPolynomial, LinearCongruence,
+    LinearSolution, LinearSystemSolution, ModCtx, ModularFilter, ModularFilterBuild, ModularSieve,
+    Modulus, MultiplicativeOrderResult, Polynomial, PrimalityAssessment, PrimeField,
+    QuadraticError, Rational, RationalMatrix, ResidueError, ResidueSet, Valuation,
+    analyze_integer_decimal, binomial_mod_prime, binomial_valuation, continued_fraction,
+    convergents, crt_fold, crt_pair, determinant_bareiss, discrete_log, extended_gcd, factor,
+    factorial_mod_prime, factorial_valuation, find_recurrence, finite_differences, format_in_base,
+    guess_sequence, hermite_normal_form, infer_recurrence_nth_mod_prime, integer_nth_root,
+    interpolate, is_prime, is_primitive_root, jacobi_symbol, lcm, linear_recurrence_nth_mod_prime,
+    modular_square_roots, multiplicative_order, next_prime, nullspace, parse_decimal,
+    parse_in_base, perfect_power, polynomial_gcd, previous_prime, primitive_root, pslq, rank,
+    rational_reconstruct_bounded, rationalize_decimal, rref, smith_normal_form_invariants, solve,
+    solve_linear_congruence, solve_linear_system, valuation,
 };
 use wasm_bindgen::prelude::*;
 
@@ -1003,6 +1004,52 @@ fn rational_rows_json(rows: &[Vec<Rational>]) -> Value {
 
 fn run_tool(tool: &str, input: &Value) -> Result<Value, String> {
     match tool {
+        "modular-combinatorics" => {
+            let operation = field(input, "operation")?;
+            let field_context = input_prime_field(input)?;
+            let n = field_u64(input, "n")?;
+            match operation {
+                "factorial-valuation" => {
+                    let value = factorial_valuation(n, field_context);
+                    Ok(json!({
+                        "result": value.to_string(), "valuation": value.to_string(),
+                        "n": n.to_string(), "prime": field_context.modulus().to_string(),
+                        "method": "Legendre", "exactness": "exact"
+                    }))
+                }
+                "binomial-valuation" => {
+                    let k = field_u64(input, "k")?;
+                    let value = binomial_valuation(n, k, field_context)
+                        .map_err(|error| format!("Binomial valuation failed: {error:?}."))?;
+                    Ok(json!({
+                        "result": value.to_string(), "valuation": value.to_string(),
+                        "n": n.to_string(), "k": k.to_string(),
+                        "prime": field_context.modulus().to_string(),
+                        "method": "Kummer", "exactness": "exact"
+                    }))
+                }
+                "factorial-mod" => combinatorics_modular_json(
+                    factorial_mod_prime(n, field_context),
+                    n,
+                    None,
+                    field_context,
+                    "direct product / Wilson complement",
+                ),
+                "binomial-mod" => {
+                    let k = field_u64(input, "k")?;
+                    combinatorics_modular_json(
+                        binomial_mod_prime(n, k, field_context),
+                        n,
+                        Some(k),
+                        field_context,
+                        "Lucas theorem",
+                    )
+                }
+                _ => Err(format!(
+                    "Unrecognized combinatorics operation: {operation}."
+                )),
+            }
+        }
         "recurrence-nth" => {
             let field_context = input_prime_field(input)?;
             let initial = parse_i128_list(field(input, "initial")?)?;
@@ -1036,12 +1083,9 @@ fn run_tool(tool: &str, input: &Value) -> Result<Value, String> {
             let field_context = input_prime_field(input)?;
             let generator = primitive_root(field_context)
                 .map_err(|error| format!("Primitive-root search failed: {error:?}."))?;
-            let factors =
-                factor(field_context.modulus() - 1).map_err(number_theory_error_message)?;
             Ok(json!({
                 "result": generator.to_string(), "generator": generator.to_string(),
                 "order": (field_context.modulus() - 1).to_string(),
-                "order_factorization": factors.factors().iter().map(|part| format!("{}^{}", part.prime, part.exponent)).collect::<Vec<_>>(),
                 "prime": field_context.modulus().to_string(), "exactness": "exact"
             }))
         }
@@ -1079,7 +1123,7 @@ fn run_tool(tool: &str, input: &Value) -> Result<Value, String> {
                 DiscreteLogResult::SearchLimitReached { order } => Ok(json!({
                     "result": "Search limit reached", "status": "search_limit_reached",
                     "explanation": "The exact bounded algorithm would require a larger search table than SwissMath permits in this interactive path.",
-                    "subgroup_order": order.to_string(), "prime": field_context.modulus().to_string(), "exactness": "exact"
+                    "subgroup_order": order.to_string(), "prime": field_context.modulus().to_string(), "exactness": "bounded_incomplete"
                 })),
             }
         }
@@ -1384,6 +1428,34 @@ fn run_tool(tool: &str, input: &Value) -> Result<Value, String> {
             )
         }
         _ => Err(format!("Unrecognized tool: {tool}.")),
+    }
+}
+
+fn combinatorics_modular_json(
+    result: Result<u64, CombinatoricsError>,
+    n: u64,
+    k: Option<u64>,
+    field_context: PrimeField,
+    method: &'static str,
+) -> Result<Value, String> {
+    match result {
+        Ok(value) => Ok(json!({
+            "result": value.to_string(), "value": value.to_string(), "n": n.to_string(),
+            "k": k.map(|value| value.to_string()), "prime": field_context.modulus().to_string(),
+            "method": method, "exactness": "exact"
+        })),
+        Err(CombinatoricsError::ComputationLimitReached {
+            estimated_steps,
+            limit,
+        }) => Ok(json!({
+            "result": "Computation limit reached", "status": "computation_limit_reached",
+            "explanation": "SwissMath can compute this exactly, but the sequential modular-product work exceeds the bounded interactive path.",
+            "estimated_steps": estimated_steps.to_string(), "limit": limit.to_string(),
+            "n": n.to_string(), "k": k.map(|value| value.to_string()),
+            "prime": field_context.modulus().to_string(), "method": method,
+            "exactness": "bounded_incomplete"
+        })),
+        Err(error) => Err(format!("Combinatorics failed: {error:?}.")),
     }
 }
 
@@ -1821,6 +1893,49 @@ mod tests {
         let no_solution =
             run_tool("discrete-log", &json!({ "prime": "7", "g": "2", "h": "3" })).unwrap();
         assert_eq!(no_solution["status"], "no_solution");
+
+        let limited = run_tool(
+            "discrete-log",
+            &json!({ "prime": "20000000687", "g": "5", "h": "1" }),
+        )
+        .unwrap();
+        assert_eq!(limited["status"], "search_limit_reached");
+        assert_eq!(limited["exactness"], "bounded_incomplete");
+    }
+
+    #[test]
+    fn combinatorics_tool_matches_cli_smoke_values_and_limit_status() {
+        let cases = [
+            (
+                json!({ "operation": "factorial-valuation", "prime": "2", "n": "10" }),
+                "8",
+            ),
+            (
+                json!({ "operation": "binomial-valuation", "prime": "2", "n": "10", "k": "3" }),
+                "3",
+            ),
+            (
+                json!({ "operation": "binomial-mod", "prime": "7", "n": "10", "k": "3" }),
+                "1",
+            ),
+            (
+                json!({ "operation": "factorial-mod", "prime": "7", "n": "5" }),
+                "1",
+            ),
+        ];
+        for (input, expected) in cases {
+            let result = run_tool("modular-combinatorics", &input).unwrap();
+            assert_eq!(result["result"], expected);
+            assert_eq!(result["exactness"], "exact");
+        }
+
+        let limited = run_tool(
+            "modular-combinatorics",
+            &json!({ "operation": "factorial-mod", "prime": "1000000007", "n": "500000003" }),
+        )
+        .unwrap();
+        assert_eq!(limited["status"], "computation_limit_reached");
+        assert_eq!(limited["exactness"], "bounded_incomplete");
     }
 
     #[test]

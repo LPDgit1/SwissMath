@@ -1,9 +1,6 @@
 use std::collections::HashMap;
 
-use crate::{
-    Congruence, Modulus, MultiplicativeOrderResult, PrimeField, crt_fold, factor,
-    multiplicative_order,
-};
+use crate::{Congruence, Factorization, Modulus, PrimeField, PrimePower, crt_fold, factor};
 
 const MAX_BSGS_BABY_STEPS: u64 = 100_000;
 
@@ -65,28 +62,22 @@ fn discrete_log_bounded(
     if base == 0 || target == 0 {
         return Err(MultiplicativeGroupError::ZeroElement);
     }
-    let order = match multiplicative_order(base, field.modulus())
-        .map_err(|_| MultiplicativeGroupError::FactorizationFailed)?
-    {
-        MultiplicativeOrderResult::Exists(order) => order,
-        MultiplicativeOrderResult::DoesNotExist => {
-            return Err(MultiplicativeGroupError::ZeroElement);
-        }
-    };
+    let group_factors =
+        factor(field.modulus() - 1).map_err(|_| MultiplicativeGroupError::FactorizationFailed)?;
+    let (order, order_factors) =
+        order_and_factorization_from_p_minus_one(base, field, &group_factors);
     if field.pow(target, order) != 1 {
         return Ok(DiscreteLogResult::NoSolution { order });
     }
-    let order_factors = factor(order).map_err(|_| MultiplicativeGroupError::FactorizationFailed)?;
     if order_factors
-        .factors()
         .iter()
         .any(|factor| ceil_sqrt(factor.prime) > baby_step_limit)
     {
         return Ok(DiscreteLogResult::SearchLimitReached { order });
     }
 
-    let mut congruences = Vec::with_capacity(order_factors.factors().len());
-    for prime_power in order_factors.factors() {
+    let mut congruences = Vec::with_capacity(order_factors.len());
+    for prime_power in &order_factors {
         let prime = prime_power.prime;
         let digit_base = field.pow(base, order / prime);
         let mut residue = 0_u64;
@@ -134,6 +125,23 @@ fn discrete_log_bounded(
         return Err(MultiplicativeGroupError::InternalVerificationFailed);
     }
     Ok(DiscreteLogResult::Solved { x, order })
+}
+
+fn order_and_factorization_from_p_minus_one(
+    base: u64,
+    field: PrimeField,
+    group_factors: &Factorization,
+) -> (u64, Vec<PrimePower>) {
+    let mut order = field.modulus() - 1;
+    let mut order_factors = group_factors.factors().to_vec();
+    for prime_power in &mut order_factors {
+        while prime_power.exponent > 0 && field.pow(base, order / prime_power.prime) == 1 {
+            order /= prime_power.prime;
+            prime_power.exponent -= 1;
+        }
+    }
+    order_factors.retain(|prime_power| prime_power.exponent > 0);
+    (order, order_factors)
 }
 
 fn is_generator_with_factors(
@@ -223,5 +231,43 @@ mod tests {
             BsgsResult::LimitExceeded
         );
         assert_eq!(ceil_sqrt(u64::MAX), 4_294_967_296);
+    }
+
+    #[test]
+    fn order_factorization_is_derived_from_the_single_group_factorization() {
+        let field = PrimeField::new(97).unwrap();
+        let group_factors = factor(96).unwrap();
+        assert_eq!(
+            order_and_factorization_from_p_minus_one(5, field, &group_factors),
+            (
+                96,
+                vec![
+                    PrimePower {
+                        prime: 2,
+                        exponent: 5
+                    },
+                    PrimePower {
+                        prime: 3,
+                        exponent: 1
+                    }
+                ]
+            )
+        );
+        assert_eq!(
+            order_and_factorization_from_p_minus_one(4, field, &group_factors),
+            (
+                24,
+                vec![
+                    PrimePower {
+                        prime: 2,
+                        exponent: 3
+                    },
+                    PrimePower {
+                        prime: 3,
+                        exponent: 1
+                    }
+                ]
+            )
+        );
     }
 }

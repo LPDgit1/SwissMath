@@ -8,6 +8,7 @@ import init, {
 } from './pkg/swissmath_web.js';
 
 const f = (name, label, value, help = '', type = 'text') => ({ name, label, value, help, type });
+const s = (name, label, value, options, help = '') => ({ name, label, value, options, help, type: 'select' });
 const t = (id, name, description, example, fields, command = 'tool') => ({ id, name, description, example, fields, command });
 
 const catalog = {
@@ -104,6 +105,22 @@ const catalog = {
       t('fp-poly-derivative', 'Formal derivative over Fp', 'Computes the formal derivative with characteristic-p cancellation.', 'Over F5 the derivative of x^5 is zero.', [f('prime', 'Prime p', '5'), f('polynomial', 'Polynomial', '0, 0, 0, 0, 0, 1')]),
       t('fp-poly-evaluate', 'Polynomial evaluation over Fp', 'Evaluates with Horner’s method over the selected field.', 'Coefficients and x are reduced modulo p.', [f('prime', 'Prime p', '5'), f('polynomial', 'Polynomial', '1, 2, 0, 1'), f('x', 'Value x', '2')]),
       t('fp-poly-powmod', 'Polynomial modular power over Fp', 'Computes A^n modulo a nonzero polynomial using binary exponentiation.', 'The output degree stays below the modulus degree.', [f('prime', 'Prime p', '5'), f('polynomial', 'Base polynomial', '1, 1'), f('exponent', 'Exponent n', '20'), f('modulus', 'Modulus polynomial', '1, 0, 1')]),
+    ],
+  },
+  combinatorics: {
+    title: 'Modular combinatorics',
+    tools: [
+      t('modular-combinatorics', 'Modular combinatorics', 'Computes factorial and binomial residues or p-adic valuations without constructing gigantic integers.', 'Uses Legendre, Kummer, Lucas, and Wilson reductions over a prime field.', [
+        s('operation', 'Operation', 'binomial-mod', [
+          ['binomial-mod', 'Binomial C(n,k) mod p'],
+          ['factorial-mod', 'Factorial n! mod p'],
+          ['factorial-valuation', 'Factorial valuation vₚ(n!)'],
+          ['binomial-valuation', 'Binomial valuation vₚ(C(n,k))'],
+        ]),
+        f('prime', 'Prime p', '7'),
+        f('n', 'Integer n', '10'),
+        f('k', 'Integer k', '3'),
+      ]),
     ],
   },
   discovery: {
@@ -238,8 +255,16 @@ function renderTool() {
     label.className = `field${multiline ? ' wide-field' : ''}`;
     const caption = document.createElement('span');
     caption.textContent = field.label;
-    const input = document.createElement(multiline ? 'textarea' : 'input');
+    const input = document.createElement(field.type === 'select' ? 'select' : (multiline ? 'textarea' : 'input'));
     input.name = field.name;
+    if (field.type === 'select') {
+      input.replaceChildren(...field.options.map(([value, text]) => {
+        const option = document.createElement('option');
+        option.value = value;
+        option.textContent = text;
+        return option;
+      }));
+    }
     input.value = field.value;
     input.required = true;
     if (multiline) input.rows = field.type === 'textarea' ? 4 : 3;
@@ -257,6 +282,20 @@ function renderTool() {
   primary.classList.remove('hidden');
   details.classList.remove('hidden');
   currentResult = null;
+  if (currentTool.id === 'modular-combinatorics') {
+    form.elements.namedItem('operation').addEventListener('change', updateCombinatoricsFields);
+    updateCombinatoricsFields();
+  }
+}
+
+function updateCombinatoricsFields() {
+  if (currentTool.id !== 'modular-combinatorics') return;
+  const operation = form.elements.namedItem('operation').value;
+  const k = form.elements.namedItem('k');
+  const needsK = operation.startsWith('binomial-');
+  k.disabled = !needsK;
+  k.required = needsK;
+  k.closest('label').classList.toggle('hidden', !needsK);
 }
 
 function decode(call, payload) {
@@ -294,7 +333,7 @@ function exactnessOf(result) {
 }
 
 function exactnessLabel(value) {
-  return { exact: 'Exact', inferred_recurrence: 'Inferred recurrence', probable: 'Probable', qualified: 'Qualified', proof_incomplete: 'Proof incomplete', '—': '—' }[value] ?? value;
+  return { exact: 'Exact', inferred_recurrence: 'Inferred recurrence', bounded_incomplete: 'Bounded incomplete', probable: 'Probable', qualified: 'Qualified', proof_incomplete: 'Proof incomplete', '—': '—' }[value] ?? value;
 }
 
 function batchInputs(input) {
@@ -450,7 +489,7 @@ categoryButtons.forEach((button) => button.addEventListener('click', () => selec
 
 function exportPayload() {
   return {
-    application: 'SwissMath Web', web_version: '0.4', core_version: '0.8',
+    application: 'SwissMath Web', web_version: '0.5', core_version: '0.9',
     operation: currentResult.tool, elapsed_ms: currentResult.elapsed, records: currentResult.records,
   };
 }
@@ -483,6 +522,12 @@ function shellValue(value) {
 }
 
 function cliCommand() {
+  if (currentTool.id === 'modular-combinatorics' && currentResult.records.length === 1) {
+    const input = currentResult.input;
+    const values = ['swissmath', 'comb', input.operation, input.prime, input.n];
+    if (input.operation.startsWith('binomial-')) values.push(input.k);
+    return values.map(shellValue).join(' ');
+  }
   const mapping = cliCommands[currentTool.id];
   if (!mapping || currentResult.records.length !== 1) return null;
   const [, ...fields] = mapping;
@@ -547,7 +592,7 @@ document.querySelector('#share-result').addEventListener('click', async () => {
 
 document.querySelector('#save-result').addEventListener('click', () => {
   if (!currentResult) return;
-  const text = `SwissMath Web v0.4 · Core v0.8\n${currentResult.title}\nTime: ${formatElapsed(currentResult.elapsed)}\n\n${plainResult()}\n`;
+  const text = `SwissMath Web v0.5 · Core v0.9\n${currentResult.title}\nTime: ${formatElapsed(currentResult.elapsed)}\n\n${plainResult()}\n`;
   download(`swissmath-${currentTool.id}.txt`, text, 'text/plain;charset=utf-8');
   showToast('Result saved.');
 });
@@ -582,6 +627,7 @@ function restoreShareState() {
     const control = form.elements.namedItem(field.name);
     if (value !== null && control) control.value = value;
   });
+  updateCombinatoricsFields();
   showToast('Input restored from the link. Press Calculate to run it.');
   return true;
 }

@@ -72,7 +72,7 @@ fn reconstruction_and_json_are_structured() {
     assert_eq!(value["result"]["numerator"], "7");
     assert_eq!(value["result"]["denominator"], "1");
     assert_eq!(value["exactness"], "exact");
-    assert_eq!(value["core_version"], "0.8");
+    assert_eq!(value["core_version"], "0.9");
     assert!(value["elapsed_ms"].is_number());
 }
 
@@ -197,4 +197,51 @@ fn recurrence_and_group_commands_have_exact_structured_results() {
     assert_eq!(value["result"]["status"], "solved");
     assert_eq!(value["result"]["x"], "17");
     assert_eq!(value["exactness"], "exact");
+
+    let limited = run(&["group", "dlog", "20000000687", "5", "1", "--json"], None);
+    assert!(limited.status.success());
+    let value: Value = serde_json::from_slice(&limited.stdout).unwrap();
+    assert_eq!(value["status"], "search_limit_reached");
+    assert_eq!(value["result"]["status"], "search_limit_reached");
+    assert_eq!(value["exactness"], "bounded_incomplete");
+}
+
+#[test]
+fn combinatorics_family_covers_four_operations_and_bounded_status() {
+    let cases = [
+        (
+            &["comb", "factorial-valuation", "2", "10", "--json"][..],
+            ("valuation", "8"),
+        ),
+        (
+            &["comb", "binomial-valuation", "2", "10", "3", "--json"][..],
+            ("valuation", "3"),
+        ),
+        (
+            &["comb", "binomial-mod", "7", "10", "3", "--json"][..],
+            ("value", "1"),
+        ),
+        (
+            &["comb", "factorial-mod", "7", "5", "--json"][..],
+            ("value", "1"),
+        ),
+    ];
+    for (arguments, (result_key, expected)) in cases {
+        let output = run(arguments, None);
+        assert!(output.status.success());
+        let value: Value = serde_json::from_slice(&output.stdout).unwrap();
+        assert_eq!(value["status"], "ok");
+        assert_eq!(value["exactness"], "exact");
+        assert_eq!(value["result"][result_key], expected);
+    }
+
+    let limited = run(
+        &["comb", "factorial-mod", "1000000007", "500000003", "--json"],
+        None,
+    );
+    assert!(limited.status.success());
+    let value: Value = serde_json::from_slice(&limited.stdout).unwrap();
+    assert_eq!(value["status"], "computation_limit_reached");
+    assert_eq!(value["result"]["status"], "computation_limit_reached");
+    assert_eq!(value["exactness"], "bounded_incomplete");
 }

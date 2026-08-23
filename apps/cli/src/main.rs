@@ -8,15 +8,16 @@ use std::time::Instant;
 use serde::Serialize;
 use serde_json::{Value, json};
 use swissmath_core::{
-    DecimalIntegerAnalysis, DiscreteLogResult, FpLinearSystemSolution, FpMatrix, FpPolynomial,
-    LinearCongruence, LinearSolution, Modulus, PrimalityAssessment, PrimeField, Valuation,
-    analyze_integer_decimal, assess_primality_decimal, discrete_log, extended_gcd, factor,
-    infer_recurrence_nth_mod_prime, inv_mod, is_primitive_root, linear_recurrence_nth_mod_prime,
-    modular_square_roots, next_prime, previous_prime, primitive_root, rational_reconstruct,
-    solve_linear_congruence, valuation,
+    CombinatoricsError, DecimalIntegerAnalysis, DiscreteLogResult, FpLinearSystemSolution,
+    FpMatrix, FpPolynomial, LinearCongruence, LinearSolution, Modulus, PrimalityAssessment,
+    PrimeField, Valuation, analyze_integer_decimal, assess_primality_decimal, binomial_mod_prime,
+    binomial_valuation, discrete_log, extended_gcd, factor, factorial_mod_prime,
+    factorial_valuation, infer_recurrence_nth_mod_prime, inv_mod, is_primitive_root,
+    linear_recurrence_nth_mod_prime, modular_square_roots, next_prime, previous_prime,
+    primitive_root, rational_reconstruct, solve_linear_congruence, valuation,
 };
 
-const CORE_VERSION: &str = "0.8";
+const CORE_VERSION: &str = "0.9";
 
 #[derive(Debug)]
 struct Cli {
@@ -33,6 +34,7 @@ struct Cli {
 struct OperationResult {
     human: String,
     result: Value,
+    status: &'static str,
     exactness: &'static str,
 }
 
@@ -168,6 +170,7 @@ Comandi: prime, factor, analyze, gcd, xgcd, inverse, congruence,\n\
          polynomial <add|sub|mul|divrem|gcd|xgcd|derivative|evaluate|powmod> <p> ...\n\
          recurrence <nth|infer> <p> ...\n\
          group <primitive-root|is-primitive-root|dlog> <p> ...\n\
+         comb <factorial-valuation|binomial-valuation|factorial-mod|binomial-mod> <p> <n> [k]\n\
 CSV: swissmath <comando-scalare> --input file.csv --column n [--output out.csv]"
 }
 
@@ -410,7 +413,7 @@ fn timed_execute(command: &str, values: &[String]) -> OutputRecord {
         Ok(output) => OutputRecord {
             operation: command.to_owned(),
             input,
-            status: "ok",
+            status: output.status,
             result: Some(output.result),
             exactness: Some(output.exactness),
             core_version: CORE_VERSION,
@@ -541,7 +544,92 @@ fn execute(command: &str, values: &[String]) -> Result<OperationResult, String> 
         "polynomial" => operation_fp_polynomial(values),
         "recurrence" => operation_recurrence(values),
         "group" => operation_group(values),
+        "comb" => operation_combinatorics(values),
         _ => Err(format!("comando sconosciuto: {command}")),
+    }
+}
+
+fn operation_combinatorics(values: &[String]) -> Result<OperationResult, String> {
+    if values.len() < 3 {
+        return Err("usage: swissmath comb <operation> <prime> <n> [k]".to_owned());
+    }
+    let operation = values[0].as_str();
+    let field = prime_field(&values[1])?;
+    let n = parse_u64(&values[2])?;
+    match operation {
+        "factorial-valuation" => {
+            require_arity(values, 3)?;
+            let value = factorial_valuation(n, field);
+            exact(
+                value.to_string(),
+                json!({ "valuation": value.to_string(), "n": n.to_string(), "prime": field.modulus().to_string(), "method": "Legendre" }),
+            )
+        }
+        "binomial-valuation" => {
+            require_arity(values, 4)?;
+            let k = parse_u64(&values[3])?;
+            let value = binomial_valuation(n, k, field)
+                .map_err(|error| format!("binomial valuation failed: {error:?}"))?;
+            exact(
+                value.to_string(),
+                json!({ "valuation": value.to_string(), "n": n.to_string(), "k": k.to_string(), "prime": field.modulus().to_string(), "method": "Kummer" }),
+            )
+        }
+        "factorial-mod" => {
+            require_arity(values, 3)?;
+            combinatorics_modular_result(
+                factorial_mod_prime(n, field),
+                n,
+                None,
+                field,
+                "direct product / Wilson complement",
+            )
+        }
+        "binomial-mod" => {
+            require_arity(values, 4)?;
+            let k = parse_u64(&values[3])?;
+            combinatorics_modular_result(
+                binomial_mod_prime(n, k, field),
+                n,
+                Some(k),
+                field,
+                "Lucas theorem",
+            )
+        }
+        _ => Err(format!("unknown combinatorics operation: {operation}")),
+    }
+}
+
+fn combinatorics_modular_result(
+    result: Result<u64, CombinatoricsError>,
+    n: u64,
+    k: Option<u64>,
+    field: PrimeField,
+    method: &'static str,
+) -> Result<OperationResult, String> {
+    match result {
+        Ok(value) => exact(
+            value.to_string(),
+            json!({
+                "value": value.to_string(), "n": n.to_string(),
+                "k": k.map(|value| value.to_string()),
+                "prime": field.modulus().to_string(), "method": method
+            }),
+        ),
+        Err(CombinatoricsError::ComputationLimitReached {
+            estimated_steps,
+            limit,
+        }) => Ok(OperationResult {
+            human: "computation limit reached: exact sequential product work exceeds the interactive bound".to_owned(),
+            result: json!({
+                "status": "computation_limit_reached", "estimated_steps": estimated_steps.to_string(),
+                "limit": limit.to_string(), "n": n.to_string(),
+                "k": k.map(|value| value.to_string()), "prime": field.modulus().to_string(), "method": method
+            }),
+            status: "computation_limit_reached",
+            exactness: "bounded_incomplete",
+        }),
+        Err(error) => Err(format!("combinatorics failed: {error:?}")),
     }
 }
 
@@ -594,6 +682,7 @@ fn operation_recurrence(values: &[String]) -> Result<OperationResult, String> {
                     "model_verified_on_supplied_prefix": result.model_verified_on_supplied_prefix,
                     "modulus": result.modulus.to_string()
                 }),
+                status: "ok",
                 exactness: "inferred_recurrence",
             })
         }
@@ -614,14 +703,12 @@ fn operation_group(values: &[String]) -> Result<OperationResult, String> {
             require_arity(values, 2)?;
             let generator = primitive_root(field)
                 .map_err(|error| format!("primitive-root search failed: {error:?}"))?;
-            let factors = factor(field.modulus() - 1).map_err(|error| error.to_string())?;
             exact(
                 generator.to_string(),
                 json!({
                     "status": "solved", "generator": generator.to_string(),
                     "order": (field.modulus() - 1).to_string(),
-                    "modulus": field.modulus().to_string(),
-                    "order_factorization": factors.factors().iter().map(|part| format!("{}^{}", part.prime, part.exponent)).collect::<Vec<_>>()
+                    "modulus": field.modulus().to_string()
                 }),
             )
         }
@@ -650,10 +737,12 @@ fn operation_group(values: &[String]) -> Result<OperationResult, String> {
                     "no solution in the subgroup generated by g".to_owned(),
                     json!({ "status": "no_solution", "subgroup_order": order.to_string(), "modulus": field.modulus().to_string() }),
                 ),
-                DiscreteLogResult::SearchLimitReached { order } => exact(
-                    "search limit reached".to_owned(),
-                    json!({ "status": "search_limit_reached", "subgroup_order": order.to_string(), "modulus": field.modulus().to_string() }),
-                ),
+                DiscreteLogResult::SearchLimitReached { order } => Ok(OperationResult {
+                    human: "search limit reached: the exact bounded algorithm declined an oversized search table".to_owned(),
+                    result: json!({ "status": "search_limit_reached", "subgroup_order": order.to_string(), "modulus": field.modulus().to_string() }),
+                    status: "search_limit_reached",
+                    exactness: "bounded_incomplete",
+                }),
             }
         }
         _ => Err(format!(
@@ -935,6 +1024,7 @@ fn operation_prime(input: &str) -> Result<OperationResult, String> {
     Ok(OperationResult {
         human: label.to_owned(),
         result: json!({ "classification": classification }),
+        status: "ok",
         exactness,
     })
 }
@@ -973,6 +1063,7 @@ fn operation_analyze(input: &str) -> Result<OperationResult, String> {
         DecimalIntegerAnalysis::Neither { n } => Ok(OperationResult {
             human: format!("{n}: Neither"),
             result: json!({ "n": n, "classification": "neither" }),
+            status: "ok",
             exactness: "neither",
         }),
         DecimalIntegerAnalysis::Exact(analysis) => {
@@ -1012,6 +1103,7 @@ fn operation_analyze(input: &str) -> Result<OperationResult, String> {
             Ok(OperationResult {
                 human: format!("{n}: {classification}"),
                 result: json!({ "n": n, "classification": classification }),
+                status: "ok",
                 exactness,
             })
         }
@@ -1089,6 +1181,7 @@ fn exact(human: String, result: Value) -> Result<OperationResult, String> {
     Ok(OperationResult {
         human,
         result,
+        status: "ok",
         exactness: "exact",
     })
 }

@@ -103,3 +103,23 @@ fn inferred_recurrence_is_explicitly_conditional_on_the_prefix() {
     assert_eq!(zero.order, 0);
     assert_eq!(zero.predicted_term, 0);
 }
+
+#[test]
+fn supplied_extra_terms_are_validated_and_observed_terms_are_returned() {
+    let field = PrimeField::new(101).unwrap();
+    let supplied = [0, 1, 1, 2, 3, 5, 8, 13];
+    assert_eq!(
+        linear_recurrence_nth_mod_prime(&supplied, &[1, 1], 6, field).unwrap(),
+        8
+    );
+    assert_eq!(
+        linear_recurrence_nth_mod_prime(&supplied, &[1, 1], 50, field).unwrap(),
+        fibonacci_fast_doubling(50, 101)
+    );
+
+    let inconsistent = [0, 1, 1, 2, 4, 5];
+    assert_eq!(
+        linear_recurrence_nth_mod_prime(&inconsistent, &[1, 1], 3, field),
+        Err(RecurrenceError::InconsistentInitialTerms { index: 4 })
+    );
+}

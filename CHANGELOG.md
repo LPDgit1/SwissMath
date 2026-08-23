@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.9.0 — Efficient Modular Combinatorics
+
+- Reused one `p-1` factorization throughout discrete logarithms, removed
+  presentation-only refactorization, and clarified bounded-incomplete status.
+- Validated every supplied recurrence-prefix term before evaluation.
+- Added Legendre factorial valuation, Kummer binomial valuation, Lucas
+  binomial residues, and direct/Wilson factorial residues over prime fields.
+- Added a fixed preflighted product-work bound, CLI v0.4, Web v0.5, exhaustive
+  independent tests, benchmarks, and cross-surface parity coverage.
+
 ## 0.8.0 — Sequences & Multiplicative Structure
 
 - Made finite-field matrices and polynomials permanently retain their prime

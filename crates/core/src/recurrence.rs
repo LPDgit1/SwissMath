@@ -4,6 +4,7 @@ use crate::{DiscoveryError, PrimeField, berlekamp_massey_mod_prime};
 pub enum RecurrenceError {
     EmptyRecurrence,
     InsufficientInitialTerms,
+    InconsistentInitialTerms { index: usize },
     InsufficientSequence,
     InferenceFailed(DiscoveryError),
 }
@@ -32,21 +33,33 @@ pub fn linear_recurrence_nth_mod_prime(
     if initial_terms.len() < order {
         return Err(RecurrenceError::InsufficientInitialTerms);
     }
-    if n < order as u64 {
-        return Ok(field.normalize(initial_terms[n as usize]));
-    }
     let recurrence = coefficients
         .iter()
         .map(|&value| field.normalize(value))
         .collect::<Vec<_>>();
-    let initial = initial_terms[..order]
+    let supplied = initial_terms
         .iter()
         .map(|&value| field.normalize(value))
         .collect::<Vec<_>>();
+    for index in order..supplied.len() {
+        let expected = recurrence
+            .iter()
+            .enumerate()
+            .fold(0, |sum, (offset, &coefficient)| {
+                field.add(sum, field.mul(coefficient, supplied[index - offset - 1]))
+            });
+        if supplied[index] != expected {
+            return Err(RecurrenceError::InconsistentInitialTerms { index });
+        }
+    }
+    if n < supplied.len() as u64 {
+        return Ok(supplied[n as usize]);
+    }
+    let initial = &supplied[..order];
     let weights = recurrence_power(n, &recurrence, field);
     Ok(weights
         .iter()
-        .zip(initial)
+        .zip(initial.iter().copied())
         .fold(0, |sum, (&weight, value)| {
             field.add(sum, field.mul(weight, value))
         }))

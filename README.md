@@ -6,7 +6,7 @@ desktop, command-line, and WebAssembly interfaces.
 
 By Luca Pezzullo, 2026
 
-Current source status: SwissMath Core v0.8, Web v0.4, CLI v0.3, and Desktop
+Current source status: SwissMath Core v0.9, Web v0.5, CLI v0.4, and Desktop
 v0.5. The public deployment may lag the validated local source release.
 
 ## Try it online
@@ -39,6 +39,8 @@ because the public deployment may lag the source repository.
   Fp, plus explicitly conditional Berlekamp–Massey extrapolation;
 - primitive-root search/checking and bounded exact discrete logarithms over
   Fp with solved, no-solution, and search-limit outcomes;
+- factorial/binomial p-adic valuations and bounded exact factorial/binomial
+  residues modulo a prime;
 - Jacobi and Legendre symbols;
 - modular roots in the currently supported domains.
 
@@ -70,7 +72,7 @@ Primality labels are deliberately precise:
 
 All surfaces reuse the same `swissmath-core` implementation.
 
-### Core v0.8 finite-field and multiplicative domain
+### Core v0.9 finite-field and multiplicative domain
 
 Finite-field operations accept only a prime `p` in the exact `u64` domain.
 Inputs are reduced to canonical residues `0..p-1`; composite moduli are rejected.
@@ -85,6 +87,16 @@ group frameworks.
 An inferred recurrence is the minimal recurrence fitting the supplied finite
 prefix over Fp. Extrapolated terms are exact under that inferred model, but do
 not prove that an unknown generating process follows it indefinitely.
+
+### Modular combinatorics
+
+Core v0.9 computes `v_p(n!)`, `v_p(C(n,k))`, `C(n,k) mod p`, and `n! mod p`
+for `u64` inputs and an exact prime field. Legendre, Kummer, Lucas, symmetry,
+and Wilson reduction avoid constructing gigantic factorials or binomial
+coefficients. For example, `C(10^18,10^9) mod p` is reduced to base-p digit
+work. Difficult mid-digit products are declined before execution when they
+exceed the fixed interactive work bound; this is an incomplete bounded
+computation, not an approximate answer.
 
 ### Rational reconstruction semantics
 
@@ -179,6 +191,10 @@ target\release\swissmath.exe polynomial derivative 5 "0,0,0,0,0,1" --json
 target\release\swissmath.exe recurrence nth 1000000007 "0,1" "1,1" 1000000000000000000 --json
 target\release\swissmath.exe group primitive-root 17 --json
 target\release\swissmath.exe group dlog 97 5 83 --json
+target\release\swissmath.exe comb factorial-valuation 2 1000000000000000000 --json
+target\release\swissmath.exe comb binomial-valuation 2 1000000000000000000 1000000000 --json
+target\release\swissmath.exe comb binomial-mod 1000003 1000000000000000000 1000000000 --json
+target\release\swissmath.exe comb factorial-mod 1000000007 1000000 --json
 ```
 
 Streaming PowerShell example:
@@ -257,7 +273,7 @@ optional `-BundleName` parameter can produce, for example:
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File scripts/package-source.ps1
-powershell -ExecutionPolicy Bypass -File scripts/package-source.ps1 -BundleName SwissMath-v0.8-source
+powershell -ExecutionPolicy Bypass -File scripts/package-source.ps1 -BundleName SwissMath-v0.9-source
 ```
 
 Archives exclude build output, local work folders, binaries, `.git`, and other

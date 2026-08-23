@@ -117,6 +117,21 @@ directory or installs tools.
 
 The validated browser bundle is written to `dist/web/`.
 
+To use the local Web application on Windows, double-click
+`Avvia-SwissMath-Web.cmd`. It starts a small HTTP server bound only to
+`127.0.0.1` and opens the default browser. No Python, Node.js, installation, or
+network connection is required at runtime. Close its terminal window, or press
+`Ctrl+C`, to stop it.
+
+Alternatively:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts/serve-web.ps1
+```
+
+Do not open `dist/web/index.html` directly: browsers block ES modules and WASM
+loading from `file://`, leaving the tool menu and sidebar inactive.
+
 ## Build and use the CLI
 
 ```powershell

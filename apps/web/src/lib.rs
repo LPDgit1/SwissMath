@@ -1,9 +1,16 @@
+use num_bigint::BigInt;
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
+use serde_json::{Value, json};
 use swissmath_core::{
     Congruence, DecimalIntegerAnalysis, DecimalIntegerAnalysisError, LinearCongruence,
-    LinearSolution, ModCtx, ModularFilter, ModularFilterBuild, ModularSieve, Modulus,
-    MultiplicativeOrderResult, PrimalityAssessment, QuadraticError, ResidueError, ResidueSet,
-    analyze_integer_decimal, crt_pair, jacobi_symbol, modular_square_roots, multiplicative_order,
+    LinearSolution, LinearSystemSolution, ModCtx, ModularFilter, ModularFilterBuild, ModularSieve,
+    Modulus, MultiplicativeOrderResult, Polynomial, PrimalityAssessment, QuadraticError, Rational,
+    RationalMatrix, ResidueError, ResidueSet, analyze_integer_decimal, continued_fraction,
+    convergents, crt_fold, crt_pair, determinant_bareiss, extended_gcd, factor, find_recurrence,
+    finite_differences, format_in_base, guess_sequence, hermite_normal_form, integer_nth_root,
+    interpolate, is_prime, jacobi_symbol, lcm, modular_square_roots, multiplicative_order,
+    next_prime, nullspace, parse_decimal, parse_in_base, perfect_power, polynomial_gcd, pslq, rank,
+    rational_reconstruct_bounded, rationalize_decimal, rref, smith_normal_form_invariants, solve,
     solve_linear_congruence, solve_linear_system,
 };
 use wasm_bindgen::prelude::*;
@@ -166,6 +173,9 @@ fn number_theory_error_message(error: swissmath_core::NumberTheoryError) -> Stri
         }
         swissmath_core::NumberTheoryError::Overflow => {
             "Il risultato esatto non è rappresentabile in u64.".to_owned()
+        }
+        swissmath_core::NumberTheoryError::NonPrimeBase => {
+            "La base della valutazione deve essere prima.".to_owned()
         }
     }
 }
@@ -864,10 +874,462 @@ where
     encode_result(parse_payload(payload).and_then(call))
 }
 
+#[derive(Debug, Deserialize)]
+struct ToolboxInput {
+    tool: String,
+    #[serde(default)]
+    input: Value,
+}
+
+fn field<'a>(input: &'a Value, name: &str) -> Result<&'a str, String> {
+    input
+        .get(name)
+        .and_then(Value::as_str)
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .ok_or_else(|| format!("{name}: inserisci un valore."))
+}
+
+fn field_u64(input: &Value, name: &str) -> Result<u64, String> {
+    parse_u64(name, field(input, name)?)
+}
+
+fn field_i64(input: &Value, name: &str) -> Result<i64, String> {
+    field(input, name)?
+        .parse::<i64>()
+        .map_err(|_| format!("{name}: usa un intero compreso nell'intervallo i64."))
+}
+
+fn field_u128(input: &Value, name: &str) -> Result<u128, String> {
+    field(input, name)?
+        .parse::<u128>()
+        .map_err(|_| format!("{name}: usa un intero non negativo compreso nell'intervallo u128."))
+}
+
+fn parse_rational_value(value: &str) -> Result<Rational, String> {
+    if let Some((numerator, denominator)) = value.split_once('/') {
+        let numerator = numerator
+            .trim()
+            .parse::<BigInt>()
+            .map_err(|_| "Numeratore non valido.".to_owned())?;
+        let denominator = denominator
+            .trim()
+            .parse::<BigInt>()
+            .map_err(|_| "Denominatore non valido.".to_owned())?;
+        Rational::new(numerator, denominator)
+            .map_err(|_| "Il denominatore non può essere zero.".to_owned())
+    } else {
+        parse_decimal(value)
+            .map_err(|_| "Usa un intero, un decimale o una frazione a/b valida.".to_owned())
+    }
+}
+
+fn parse_integer_list(value: &str) -> Result<Vec<i64>, String> {
+    let values = value
+        .split(|character: char| character == ',' || character == ';' || character.is_whitespace())
+        .filter(|part| !part.is_empty())
+        .map(|part| {
+            part.parse::<i64>()
+                .map_err(|_| format!("Termine non valido: {part}."))
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    if values.is_empty() {
+        Err("Inserisci almeno un valore.".to_owned())
+    } else {
+        Ok(values)
+    }
+}
+
+fn parse_float_list(value: &str) -> Result<Vec<f64>, String> {
+    let values = value
+        .split(|character: char| character == ',' || character == ';' || character.is_whitespace())
+        .filter(|part| !part.is_empty())
+        .map(|part| {
+            part.parse::<f64>()
+                .map_err(|_| format!("Valore numerico non valido: {part}."))
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    if values.len() < 2 {
+        Err("Inserisci almeno due valori.".to_owned())
+    } else {
+        Ok(values)
+    }
+}
+
+fn parse_integer_matrix(value: &str) -> Result<Vec<Vec<i64>>, String> {
+    let rows = value
+        .lines()
+        .flat_map(|line| line.split(';'))
+        .filter(|row| !row.trim().is_empty())
+        .map(parse_integer_list)
+        .collect::<Result<Vec<_>, _>>()?;
+    if rows.is_empty() || rows[0].is_empty() || rows.iter().any(|row| row.len() != rows[0].len()) {
+        return Err("La matrice deve essere rettangolare e non vuota.".to_owned());
+    }
+    Ok(rows)
+}
+
+fn rational_matrix(rows: &[Vec<i64>]) -> Result<RationalMatrix, String> {
+    RationalMatrix::from_integers(rows).map_err(|_| "La matrice non è valida.".to_owned())
+}
+
+fn rational_rows_json(rows: &[Vec<Rational>]) -> Value {
+    json!(
+        rows.iter()
+            .map(|row| row.iter().map(ToString::to_string).collect::<Vec<_>>())
+            .collect::<Vec<_>>()
+    )
+}
+
+fn run_tool(tool: &str, input: &Value) -> Result<Value, String> {
+    match tool {
+        "gcd" => Ok(
+            json!({ "result": swissmath_core::gcd(field_u64(input, "a")?, field_u64(input, "b")?).to_string() }),
+        ),
+        "lcm" => Ok(
+            json!({ "result": lcm(field_u64(input, "a")?, field_u64(input, "b")?).map_err(|error| error.to_string())?.to_string() }),
+        ),
+        "xgcd" => {
+            let a = field_u64(input, "a")?;
+            let b = field_u64(input, "b")?;
+            let result = extended_gcd(a, b);
+            Ok(
+                json!({ "result": result.gcd.to_string(), "x": result.x.to_string(), "y": result.y.to_string(), "identity": format!("{a}·({}) + {b}·({}) = {}", result.x, result.y, result.gcd) }),
+            )
+        }
+        "powmod" => {
+            let modulus = Modulus::new(field_u64(input, "modulus")?)
+                .ok_or_else(|| "Il modulo deve essere positivo.".to_owned())?;
+            let base = field_u64(input, "a")? % modulus.get();
+            Ok(
+                json!({ "result": ModCtx::new(modulus).pow(base, field_u64(input, "exponent")?).to_string(), "modulus": modulus.get().to_string() }),
+            )
+        }
+        "invmod" => {
+            let modulus = Modulus::new(field_u64(input, "modulus")?)
+                .ok_or_else(|| "Il modulo deve essere positivo.".to_owned())?;
+            let a = field_u64(input, "a")? % modulus.get();
+            let inverse = ModCtx::new(modulus).inv(a).ok_or_else(|| {
+                format!("Nessun inverso modulare: gcd({a},{}) ≠ 1.", modulus.get())
+            })?;
+            Ok(json!({ "result": inverse.to_string(), "modulus": modulus.get().to_string() }))
+        }
+        "crt" => {
+            let rows = parse_integer_matrix(field(input, "congruences")?)?;
+            if rows.iter().any(|row| row.len() != 2 || row[1] <= 0) {
+                return Err(
+                    "Ogni riga CRT deve contenere residuo e modulo positivo.".to_owned(),
+                );
+            }
+            let congruences = rows
+                .into_iter()
+                .map(|row| {
+                    let modulus = u64::try_from(row[1])
+                        .map_err(|_| "Modulo CRT non valido.".to_owned())?;
+                    let modulus = Modulus::new(modulus)
+                        .ok_or_else(|| "Il modulo CRT deve essere positivo.".to_owned())?;
+                    let residue =
+                        i128::from(row[0]).rem_euclid(i128::from(modulus.get())) as u64;
+                    Ok(Congruence::new(residue, modulus))
+                })
+                .collect::<Result<Vec<_>, String>>()?;
+            let result = crt_fold(congruences)
+                .map_err(|_| "Il modulo CRT combinato supera il dominio u64.".to_owned())?
+                .ok_or_else(|| "Le congruenze sono incompatibili.".to_owned())?;
+            Ok(json!({ "result": format!("x ≡ {} (mod {})", result.residue(), result.modulus().get()), "residue": result.residue().to_string(), "modulus": result.modulus().get().to_string() }))
+        }
+        "iroot" => {
+            let degree = u32::try_from(field_u64(input, "degree")?)
+                .map_err(|_| "Il grado è troppo grande.".to_owned())?;
+            let result = integer_nth_root(field_u128(input, "n")?, degree)
+                .ok_or_else(|| "Il grado deve essere positivo.".to_owned())?;
+            Ok(
+                json!({ "result": result.floor.to_string(), "exact": result.exact, "degree": degree }),
+            )
+        }
+        "perfect-power" => {
+            let result = perfect_power(field_u128(input, "n")?);
+            Ok(match result {
+                Some(value) => {
+                    json!({"result": format!("{}^{}", value.base, value.exponent), "base": value.base.to_string(), "exponent": value.exponent})
+                }
+                None => json!({"result": "Non è una potenza perfetta", "exists": false}),
+            })
+        }
+        "base-convert" => {
+            let from = u32::try_from(field_u64(input, "from_base")?)
+                .map_err(|_| "Base non valida.".to_owned())?;
+            let to = u32::try_from(field_u64(input, "to_base")?)
+                .map_err(|_| "Base non valida.".to_owned())?;
+            let value = parse_in_base(field(input, "value")?, from)
+                .map_err(|_| "Valore o base di partenza non validi (basi 2–36).".to_owned())?;
+            Ok(
+                json!({ "result": format_in_base(value, to).map_err(|_| "Base di destinazione non valida (2–36).".to_owned())?, "decimal": value.to_string() }),
+            )
+        }
+        "isprime" => Ok(
+            json!({ "result": if is_prime(field_u64(input, "n")?) { "Prime" } else { "Composite or neither" }, "exact": true }),
+        ),
+        "nextprime" => Ok(
+            json!({ "result": next_prime(field_u64(input, "n")?).map_err(number_theory_error_message)?.to_string(), "exact": true }),
+        ),
+        "factor" | "divisors" | "totient" | "mobius" => {
+            let factorization =
+                factor(field_u64(input, "n")?).map_err(number_theory_error_message)?;
+            let factors = factorization
+                .factors()
+                .iter()
+                .map(|part| format!("{}^{}", part.prime, part.exponent))
+                .collect::<Vec<_>>();
+            match tool {
+                "factor" => Ok(
+                    json!({ "result": if factors.is_empty() { "1".to_owned() } else { factors.join(" · ") }, "factors": factors }),
+                ),
+                "totient" => Ok(
+                    json!({ "result": factorization.euler_phi().to_string(), "factors": factors }),
+                ),
+                "mobius" => {
+                    Ok(json!({ "result": factorization.mobius().to_string(), "factors": factors }))
+                }
+                _ => {
+                    let summary = factorization
+                        .divisor_summary(10_000)
+                        .map_err(number_theory_error_message)?;
+                    Ok(
+                        json!({ "result": summary.count.to_string(), "count": summary.count.to_string(), "sum": summary.sum.to_string(), "divisors": summary.divisors.as_ref().map(|values| values.iter().map(|value| value.to_string()).collect::<Vec<_>>()), "limited": summary.divisors.is_none() }),
+                    )
+                }
+            }
+        }
+        "jacobi" => Ok(
+            json!({ "result": jacobi_symbol(i128::from(field_i64(input, "a")?), field_u64(input, "modulus")?).map_err(quadratic_error_message)?.to_string() }),
+        ),
+        "sqrtmod" => {
+            let roots = modular_square_roots(
+                i128::from(field_i64(input, "a")?),
+                field_u64(input, "modulus")?,
+            )
+            .map_err(quadratic_error_message)?;
+            Ok(
+                json!({ "result": roots.iter().map(u64::to_string).collect::<Vec<_>>().join(", "), "roots": roots.iter().map(u64::to_string).collect::<Vec<_>>() }),
+            )
+        }
+        "multiplicative-order" => {
+            let modulus = Modulus::new(field_u64(input, "modulus")?)
+                .ok_or_else(|| "Il modulo deve essere positivo.".to_owned())?;
+            match multiplicative_order(field_u64(input, "a")?, modulus.get())
+                .map_err(number_theory_error_message)?
+            {
+                MultiplicativeOrderResult::Exists(order) => {
+                    Ok(json!({ "result": order.to_string(), "exists": true }))
+                }
+                MultiplicativeOrderResult::DoesNotExist => {
+                    Err("L'ordine non esiste perché gcd(a,n) ≠ 1.".to_owned())
+                }
+            }
+        }
+        "contfrac" => {
+            let value = parse_rational_value(field(input, "value")?)?;
+            let terms = continued_fraction(&value);
+            let conv = convergents(&terms);
+            Ok(
+                json!({ "result": terms.iter().map(ToString::to_string).collect::<Vec<_>>().join(", "), "terms": terms.iter().map(ToString::to_string).collect::<Vec<_>>(), "convergents": conv.iter().map(ToString::to_string).collect::<Vec<_>>() }),
+            )
+        }
+        "rationalize" => {
+            let max_denominator = field_u64(input, "max_denominator")?;
+            let result =
+                rationalize_decimal(field(input, "value")?, max_denominator).map_err(|_| {
+                    "Impossibile razionalizzare l'input con il limite indicato.".to_owned()
+                })?;
+            Ok(
+                json!({ "result": result.fraction.to_string(), "decimal": result.fraction.to_f64(), "absolute_error": result.absolute_error.to_f64(), "exact_error": result.absolute_error.to_string(), "max_denominator": max_denominator.to_string() }),
+            )
+        }
+        "rational-reconstruct" => {
+            let result = rational_reconstruct_bounded(
+                field_u64(input, "residue")?,
+                field_u64(input, "modulus")?,
+                field_u64(input, "bound")?,
+                field_u64(input, "bound")?,
+            )
+            .map_err(|_| {
+                "Parametri non validi per la ricostruzione razionale.".to_owned()
+            })?
+            .ok_or_else(|| {
+                "Nessuna ricostruzione razionale soddisfa i limiti indicati.".to_owned()
+            })?;
+            Ok(json!({ "result": result.to_string() }))
+        }
+        "poly-eval" => {
+            let coefficients = parse_integer_list(field(input, "coefficients")?)?;
+            let polynomial = Polynomial::from_integers(&coefficients);
+            let x = parse_rational_value(field(input, "x")?)?;
+            Ok(
+                json!({ "result": polynomial.evaluate(&x).to_string(), "polynomial": polynomial.format_human("x") }),
+            )
+        }
+        "poly-gcd" => {
+            let left = Polynomial::from_integers(&parse_integer_list(field(input, "left")?)?);
+            let right = Polynomial::from_integers(&parse_integer_list(field(input, "right")?)?);
+            let result = polynomial_gcd(left, right)
+                .map_err(|_| "Impossibile calcolare il MCD polinomiale.".to_owned())?;
+            Ok(
+                json!({ "result": result.format_human("x"), "coefficients": result.coefficients().iter().map(ToString::to_string).collect::<Vec<_>>() }),
+            )
+        }
+        "interpolate" => {
+            let rows = parse_integer_matrix(field(input, "points")?)?;
+            if rows.iter().any(|row| row.len() != 2) {
+                return Err("Ogni punto deve contenere esattamente x e y.".to_owned());
+            }
+            let points = rows
+                .iter()
+                .map(|row| (Rational::from_i64(row[0]), Rational::from_i64(row[1])))
+                .collect::<Vec<_>>();
+            let result = interpolate(&points).map_err(|error| match error {
+                swissmath_core::PolynomialError::DuplicateAbscissa => {
+                    "L'interpolazione richiede ascisse x distinte.".to_owned()
+                }
+                _ => "Impossibile interpolare i punti.".to_owned(),
+            })?;
+            Ok(
+                json!({ "result": result.format_human("x"), "coefficients": result.coefficients().iter().map(ToString::to_string).collect::<Vec<_>>() }),
+            )
+        }
+        "finite-differences" => {
+            let values = parse_integer_list(field(input, "sequence")?)?
+                .into_iter()
+                .map(BigInt::from)
+                .collect::<Vec<_>>();
+            let result = finite_differences(&values);
+            Ok(
+                json!({ "result": result.polynomial_degree.map_or_else(|| "Nessun grado determinato".to_owned(), |degree| format!("Progressione polinomiale di grado {degree}")), "degree": result.polynomial_degree, "rows": result.rows.iter().map(|row| row.iter().map(ToString::to_string).collect::<Vec<_>>()).collect::<Vec<_>>() }),
+            )
+        }
+        "det" | "rank" | "rref" | "nullspace" | "hnf" | "snf" | "solve" => {
+            run_matrix_tool(tool, input)
+        }
+        "integer-relation" => {
+            let values = parse_float_list(field(input, "values")?)?;
+            let tolerance = field(input, "tolerance")?
+                .parse::<f64>()
+                .map_err(|_| "Tolleranza non valida.".to_owned())?;
+            let limit = field_u64(input, "coefficient_limit")?;
+            let result = pslq(&values, tolerance, limit, 10_000).map_err(|_| {
+                "Nessuna relazione trovata entro precisione e limiti indicati.".to_owned()
+            })?;
+            Ok(
+                json!({ "result": result.coefficients.iter().map(i64::to_string).collect::<Vec<_>>().join(", "), "coefficients": result.coefficients, "residual": result.residual, "max_coefficient": result.max_coefficient, "iterations": result.iterations, "label": "Candidate integer relation" }),
+            )
+        }
+        "recurrence" => {
+            let sequence = parse_integer_list(field(input, "sequence")?)?;
+            let result = find_recurrence(&sequence).map_err(|_| {
+                "Termini insufficienti o nessuna ricorrenza intera breve validata.".to_owned()
+            })?;
+            Ok(
+                json!({ "result": result.coefficients.iter().enumerate().map(|(index, coefficient)| format!("{coefficient}·a(n-{})", index + 1)).collect::<Vec<_>>().join(" + "), "coefficients": result.coefficients, "order": result.order, "terms_checked": result.terms_checked, "exact": result.exact }),
+            )
+        }
+        "guess" => {
+            let sequence = parse_integer_list(field(input, "sequence")?)?;
+            let result = guess_sequence(&sequence)
+                .map_err(|_| "Servono più termini per formulare ipotesi esatte.".to_owned())?;
+            let candidates = result
+                .iter()
+                .map(|candidate| {
+                    json!({
+                        "kind": candidate.kind,
+                        "formula": candidate.formula,
+                        "reason": candidate.reason,
+                        "terms_checked": candidate.terms_checked,
+                    })
+                })
+                .collect::<Vec<_>>();
+            Ok(
+                json!({ "result": result.first().map(|candidate| candidate.formula.clone()).unwrap_or_else(|| "Nessuna struttura semplice trovata".to_owned()), "candidates": candidates }),
+            )
+        }
+        _ => Err(format!("Strumento non riconosciuto: {tool}.")),
+    }
+}
+
+fn run_matrix_tool(tool: &str, input: &Value) -> Result<Value, String> {
+    let rows = parse_integer_matrix(field(input, "matrix")?)?;
+    let rational = rational_matrix(&rows)?;
+    let integers = rows
+        .iter()
+        .map(|row| row.iter().copied().map(BigInt::from).collect::<Vec<_>>())
+        .collect::<Vec<_>>();
+    match tool {
+        "det" => Ok(
+            json!({ "result": determinant_bareiss(&integers).map_err(|_| "Il determinante richiede una matrice quadrata.".to_owned())?.to_string() }),
+        ),
+        "rank" => Ok(json!({ "result": rank(&rational).to_string() })),
+        "rref" => {
+            let result = rref(&rational);
+            Ok(
+                json!({ "result": rational_rows_json(result.matrix.data()), "matrix": rational_rows_json(result.matrix.data()), "pivots": result.pivot_columns }),
+            )
+        }
+        "nullspace" => {
+            let basis = nullspace(&rational);
+            Ok(
+                json!({ "result": rational_rows_json(&basis), "basis": rational_rows_json(&basis), "dimension": basis.len() }),
+            )
+        }
+        "hnf" => {
+            let result = hermite_normal_form(&integers)
+                .map_err(|_| "Impossibile calcolare la forma normale di Hermite.".to_owned())?;
+            let strings = result
+                .iter()
+                .map(|row| row.iter().map(ToString::to_string).collect::<Vec<_>>())
+                .collect::<Vec<_>>();
+            Ok(json!({ "result": strings, "matrix": strings }))
+        }
+        "snf" => {
+            let result = smith_normal_form_invariants(&integers)
+                .map_err(|_| "Impossibile calcolare gli invarianti di Smith.".to_owned())?;
+            Ok(
+                json!({ "result": result.iter().map(ToString::to_string).collect::<Vec<_>>().join(", "), "invariants": result.iter().map(ToString::to_string).collect::<Vec<_>>() }),
+            )
+        }
+        "solve" => {
+            let rhs = parse_integer_list(field(input, "rhs")?)?
+                .into_iter()
+                .map(Rational::from_i64)
+                .collect::<Vec<_>>();
+            match solve(&rational, &rhs).map_err(|_| {
+                "Il vettore dei termini noti non ha dimensione compatibile.".to_owned()
+            })? {
+                LinearSystemSolution::None => Err("Il sistema non ha soluzioni.".to_owned()),
+                LinearSystemSolution::Unique(values) => Ok(
+                    json!({ "result": values.iter().map(ToString::to_string).collect::<Vec<_>>().join(", "), "kind": "unique", "solution": values.iter().map(ToString::to_string).collect::<Vec<_>>() }),
+                ),
+                LinearSystemSolution::Infinite {
+                    particular,
+                    nullspace_basis,
+                } => Ok(
+                    json!({ "result": particular.iter().map(ToString::to_string).collect::<Vec<_>>().join(", "), "kind": "infinite", "particular": particular.iter().map(ToString::to_string).collect::<Vec<_>>(), "nullspace_basis": rational_rows_json(&nullspace_basis) }),
+                ),
+            }
+        }
+        _ => unreachable!(),
+    }
+}
+
 #[wasm_bindgen]
 pub fn wasm_calculate_modular(payload: &str) -> String {
     decode_and_call::<ModularInput, ModularResult, _>(payload, |input| {
         calculate_modular(input.modulus, input.a, input.b, input.exponent)
+    })
+}
+
+#[wasm_bindgen]
+pub fn wasm_run_tool(payload: &str) -> String {
+    decode_and_call::<ToolboxInput, Value, _>(payload, |request| {
+        run_tool(&request.tool, &request.input)
     })
 }
 

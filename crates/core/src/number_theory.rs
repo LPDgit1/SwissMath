@@ -23,6 +23,8 @@ pub enum NumberTheoryError {
     SearchFailed,
     /// A checked intermediate exceeded the supported u64 range.
     Overflow,
+    /// A p-adic valuation was requested with a non-prime base.
+    NonPrimeBase,
 }
 
 impl fmt::Display for NumberTheoryError {
@@ -31,6 +33,7 @@ impl fmt::Display for NumberTheoryError {
             Self::ZeroUndefined => f.write_str("prime factorization is undefined for zero"),
             Self::SearchFailed => f.write_str("bounded Pollard search failed to find a factor"),
             Self::Overflow => f.write_str("exact number-theory result exceeds u64"),
+            Self::NonPrimeBase => f.write_str("valuation base must be prime"),
         }
     }
 }
@@ -100,6 +103,20 @@ pub struct Factorization {
     factors: Vec<PrimePower>,
 }
 
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct DivisorSummary {
+    pub count: u64,
+    pub sum: u128,
+    pub divisors: Option<Vec<u64>>,
+}
+
+/// Exact p-adic valuation, with the valuation of zero represented explicitly.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum Valuation {
+    Finite(u32),
+    Infinite,
+}
+
 impl Factorization {
     /// Returns the integer represented by this factorization.
     #[inline]
@@ -135,6 +152,112 @@ impl Factorization {
     pub fn carmichael_lambda(&self) -> Result<u64, NumberTheoryError> {
         carmichael_lambda_from_factorization(self)
     }
+
+    /// Returns the Moebius function without repeating factorization work.
+    #[must_use]
+    pub fn mobius(&self) -> i8 {
+        if self.factors.iter().any(|factor| factor.exponent > 1) {
+            0
+        } else if self.factors.len() % 2 == 0 {
+            1
+        } else {
+            -1
+        }
+    }
+
+    /// Returns the product of the distinct prime divisors.
+    #[must_use]
+    pub fn radical(&self) -> u64 {
+        self.factors.iter().fold(1_u64, |result, factor| {
+            result
+                .checked_mul(factor.prime)
+                .expect("the radical divides the represented u64")
+        })
+    }
+
+    /// Returns whether no prime square divides the represented integer.
+    #[must_use]
+    pub fn is_squarefree(&self) -> bool {
+        self.factors.iter().all(|factor| factor.exponent == 1)
+    }
+
+    /// Returns the exact number of positive divisors.
+    #[must_use]
+    pub fn divisor_count(&self) -> u64 {
+        self.factors.iter().fold(1_u64, |count, factor| {
+            count
+                .checked_mul(u64::from(factor.exponent) + 1)
+                .expect("the divisor count of a u64 fits in u64")
+        })
+    }
+
+    /// Returns the exact sum of positive divisors.
+    ///
+    /// For a u64 input, sigma(n) is below `n * (1 + ln(n))`, hence u128 is
+    /// sufficient over the complete supported domain.
+    #[must_use]
+    pub fn divisor_sum(&self) -> u128 {
+        self.factors.iter().fold(1_u128, |sum, factor| {
+            let mut term = 1_u128;
+            let mut power = 1_u128;
+            for _ in 0..factor.exponent {
+                power = power
+                    .checked_mul(u128::from(factor.prime))
+                    .expect("a prime power in a u64 factorization fits in u128");
+                term = term
+                    .checked_add(power)
+                    .expect("a u64 prime-power divisor sum fits in u128");
+            }
+            sum.checked_mul(term)
+                .expect("the divisor sum of a u64 fits in u128")
+        })
+    }
+
+    /// Materializes all positive divisors in ascending order on explicit request.
+    #[must_use]
+    pub fn divisors(&self) -> Vec<u64> {
+        let mut values = vec![1_u64];
+        for factor in &self.factors {
+            let previous_len = values.len();
+            let mut power = 1_u64;
+            for _ in 0..factor.exponent {
+                power = power
+                    .checked_mul(factor.prime)
+                    .expect("factor powers divide the represented u64");
+                for index in 0..previous_len {
+                    values.push(
+                        values[index]
+                            .checked_mul(power)
+                            .expect("generated divisors divide the represented u64"),
+                    );
+                }
+            }
+        }
+        values.sort_unstable();
+        values
+    }
+
+    /// Computes divisor count/sum and optionally materializes a bounded list.
+    pub fn divisor_summary(
+        &self,
+        enumeration_limit: usize,
+    ) -> Result<DivisorSummary, NumberTheoryError> {
+        let count = self.divisor_count();
+        let sum = self.divisor_sum();
+        let divisors = if usize::try_from(count)
+            .ok()
+            .is_some_and(|value| value <= enumeration_limit)
+        {
+            Some(self.divisors())
+        } else {
+            None
+        };
+        Ok(DivisorSummary {
+            count,
+            sum,
+            divisors,
+        })
+    }
 }
 
 /// The one-call result used by the integer-analysis GUI.
@@ -146,6 +269,11 @@ pub struct IntegerAnalysis {
     pub factorization: Factorization,
     pub phi: u64,
     pub lambda: u64,
+    pub mobius: i8,
+    pub radical: u64,
+    pub squarefree: bool,
+    pub divisor_count: u64,
+    pub divisor_sum: u128,
 }
 
 /// Result of routing a decimal integer through exact or large-number analysis.
@@ -246,6 +374,73 @@ pub fn is_prime(n: u64) -> bool {
     }
 
     true
+}
+
+/// Returns the exact p-adic valuation of `n`, requiring a prime base `p`.
+pub fn valuation(mut n: u64, p: u64) -> Result<Valuation, NumberTheoryError> {
+    if !is_prime(p) {
+        return Err(NumberTheoryError::NonPrimeBase);
+    }
+    if n == 0 {
+        return Ok(Valuation::Infinite);
+    }
+    if p == 2 {
+        return Ok(Valuation::Finite(n.trailing_zeros()));
+    }
+    let mut exponent = 0_u32;
+    while n % p == 0 {
+        n /= p;
+        exponent += 1;
+    }
+    Ok(Valuation::Finite(exponent))
+}
+
+/// Returns the least prime strictly larger than `n`.
+pub fn next_prime(n: u64) -> Result<u64, NumberTheoryError> {
+    if n < 2 {
+        return Ok(2);
+    }
+    let mut candidate = n.checked_add(1).ok_or(NumberTheoryError::Overflow)?;
+    if candidate <= 3 {
+        return Ok(3);
+    }
+    if candidate % 2 == 0 {
+        candidate = candidate
+            .checked_add(1)
+            .ok_or(NumberTheoryError::Overflow)?;
+    }
+    loop {
+        if candidate % 3 != 0 && is_prime(candidate) {
+            return Ok(candidate);
+        }
+        candidate = candidate
+            .checked_add(2)
+            .ok_or(NumberTheoryError::Overflow)?;
+    }
+}
+
+/// Returns the greatest prime strictly smaller than `n`.
+#[must_use]
+pub fn previous_prime(n: u64) -> Option<u64> {
+    if n <= 2 {
+        return None;
+    }
+    if n == 3 {
+        return Some(2);
+    }
+    let mut candidate = n - 1;
+    if candidate % 2 == 0 {
+        candidate -= 1;
+    }
+    loop {
+        if is_prime(candidate) {
+            return Some(candidate);
+        }
+        if candidate <= 3 {
+            return Some(2);
+        }
+        candidate -= 2;
+    }
 }
 
 /// Factors a nonzero u64 into sorted unique prime powers.
@@ -433,6 +628,11 @@ pub fn analyze_integer(n: u64) -> Result<IntegerAnalysis, NumberTheoryError> {
     };
     let phi = factorization.euler_phi();
     let lambda = factorization.carmichael_lambda()?;
+    let mobius = factorization.mobius();
+    let radical = factorization.radical();
+    let squarefree = factorization.is_squarefree();
+    let divisor_count = factorization.divisor_count();
+    let divisor_sum = factorization.divisor_sum();
     Ok(IntegerAnalysis {
         n,
         classification,
@@ -440,6 +640,11 @@ pub fn analyze_integer(n: u64) -> Result<IntegerAnalysis, NumberTheoryError> {
         factorization,
         phi,
         lambda,
+        mobius,
+        radical,
+        squarefree,
+        divisor_count,
+        divisor_sum,
     })
 }
 

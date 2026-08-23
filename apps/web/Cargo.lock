@@ -336,7 +336,7 @@ checksum = "0c790de23124f9ab44544d7ac05d60440adc586479ce501c1d6d7da3cd8c9cf5"
 
 [[package]]
 name = "swissmath-core"
-version = "0.5.0"
+version = "0.6.0"
 dependencies = [
  "num-bigint",
  "num-prime",
@@ -347,6 +347,7 @@ name = "swissmath-web"
 version = "0.1.0"
 dependencies = [
  "getrandom",
+ "num-bigint",
  "serde",
  "serde_json",
  "swissmath-core",

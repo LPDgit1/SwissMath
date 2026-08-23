@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.6.0 — Research Primitives
+
+- Recovered the interrupted v0.6 implementation without replacing the
+  existing primality or factorization architecture.
+- Added full-domain u64 extended GCD, explicit p-adic valuation of zero,
+  Möbius, radical, squarefree, divisor count/sum/enumeration, and strict next/
+  previous-prime navigation.
+- Reused each `Factorization` for all derived scalar functions; full divisor
+  enumeration remains an explicit request.
+- Added default and separately bounded exact rational reconstruction with
+  integer-only uniqueness bounds and mandatory congruence verification.
+- Added independent small-domain references, u64 boundary cases, a
+  deterministic reconstruction corpus, and focused benchmarks.
+
 ## 0.5.0 — Exact-first u128 Primality
 
 - Added a bounded exact-first u128 primality route after the existing exact u64

@@ -166,6 +166,9 @@ fn number_theory_error_message(error: swissmath_core::NumberTheoryError) -> Stri
         swissmath_core::NumberTheoryError::Overflow => {
             "Il risultato esatto non è rappresentabile in u64.".to_owned()
         }
+        swissmath_core::NumberTheoryError::NonPrimeBase => {
+            "La base della valutazione deve essere prima.".to_owned()
+        }
     }
 }
 

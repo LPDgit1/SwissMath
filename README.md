@@ -24,6 +24,9 @@ backend or telemetry is required.
 - bounded exact-first u128 primality;
 - probable primality above u128;
 - u64 factorization, Euler φ, Carmichael λ, and multiplicative order;
+- Core v0.6 research primitives: extended GCD, p-adic valuation, Möbius,
+  radical, squarefree test, divisor count/sum/enumeration, prime navigation,
+  and exact modular rational reconstruction;
 - Jacobi and Legendre symbols;
 - modular roots in the currently supported domains.
 
@@ -43,6 +46,16 @@ Primality labels are deliberately precise:
 - **Web** — Rust/WASM client-side application for modern browsers.
 
 Both frontends reuse the same `swissmath-core` implementation.
+
+### Core v0.6 reconstruction semantics
+
+`rational_reconstruct(r, m)` uses the exact integer bound
+`floor(sqrt((m - 1) / 2))` for numerator magnitude and denominator. This
+ensures the conventional `2AB < m` uniqueness condition. The bounded API
+accepts distinct numerator and denominator limits. A successful result is
+reduced, has a positive denominator, satisfies every bound, and is verified
+against `a ≡ r·b (mod m)` before it is returned. No-result and invalid-parameter
+outcomes remain distinct.
 
 ```text
                   swissmath-core

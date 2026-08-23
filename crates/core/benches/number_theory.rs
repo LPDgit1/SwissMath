@@ -23,7 +23,7 @@ fn measure(name: &str, n: u64, repetitions: u64) {
 }
 
 fn main() {
-    println!("SwissMath Prime & Factor v0.5 (lower is better; deterministic inputs)");
+    println!("SwissMath Core v0.6 Prime & Factor (lower is better; deterministic inputs)");
     measure("easy composite", 2 * 1_000_000_007, 20);
     measure("large prime", 18_446_744_073_709_551_557, 20);
     measure("prime power", 1_u64 << 63, 20);

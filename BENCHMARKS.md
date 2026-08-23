@@ -180,3 +180,19 @@ The u64 factorization harness reported 2,285 ns/op for the easy composite,
 ns/op for the balanced semiprime, and 535 ns/op for the mixed composite. The
 baseline and quadratic harnesses also completed successfully; the new u128
 proof path does not enter their hot loops.
+
+## v0.6 Research primitives
+
+The focused `research_primitives` harness was run locally on Windows x86_64 on
+2026-08-23. Results are directional and include deterministic fixed inputs:
+
+| Operation | Time |
+| --- | ---: |
+| Extended GCD near u64 max | 131.50 ns/op |
+| Next prime after 1,000,000,000 | 979.05 ns/op |
+| Previous prime before 1,000,000,000 | 2,561.17 ns/op |
+| Rational reconstruction modulo 10,009 | 53.62 ns/op |
+| Divisors of 897,612,484,786,617,600 | 1,378,565.90 ns/op |
+
+Divisor enumeration materializes the full sorted list and is intentionally
+opt-in. Scalar factorization-derived functions are not benchmarked separately.

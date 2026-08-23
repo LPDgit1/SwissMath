@@ -35,6 +35,12 @@ button:disabled, input:disabled, textarea:disabled, select:disabled { cursor: wa
 .nav-item strong, .nav-item small { display: block; }
 .nav-item strong { font-size: 13px; font-weight: 650; }
 .nav-item small { font-size: 11px; color: inherit; opacity: .68; margin-top: 3px; }
+.category-button { display: flex; align-items: center; gap: 12px; width: 100%; border: 1px solid transparent; border-radius: 13px; color: var(--muted); background: transparent; text-align: left; padding: 12px 11px; transition: .18s ease; }
+.category-button:hover { color: var(--text); background: rgba(155, 182, 222, .07); }
+.category-button.active { color: var(--text); border-color: rgba(101, 225, 196, .2); background: linear-gradient(90deg, rgba(101, 225, 196, .13), rgba(101, 225, 196, .03)); }
+.category-button strong, .category-button small { display: block; }
+.category-button strong { font-size: 13px; font-weight: 650; }
+.category-button small { color: inherit; font-size: 11px; opacity: .68; margin-top: 3px; }
 .sidebar-footer { margin-top: auto; padding: 0 12px; color: var(--muted); font-size: 11px; line-height: 1.55; }
 .sidebar-footer p { margin: 10px 0 0; max-width: 190px; }
 .offline-pill { display: inline-flex; align-items: center; gap: 7px; color: #b7c6d9; }
@@ -92,6 +98,14 @@ select { appearance: none; background-image: linear-gradient(45deg, transparent 
 .button-arrow { font-size: 18px; line-height: 10px; }
 .primary-button.compact { margin-top: 0; min-width: 185px; }
 .result-area { margin-top: 29px; }
+.tool-picker-row { display: grid; grid-template-columns: minmax(230px, .7fr) minmax(0, 1.6fr); gap: 22px; align-items: start; margin-bottom: 22px; }
+.tool-picker, .tool-summary { border: 1px solid var(--line); border-radius: 14px; background: rgba(17, 29, 46, .62); padding: 17px; }
+.tool-summary { min-height: 106px; }
+.tool-name { color: var(--accent); font-size: 12px; font-weight: 750; letter-spacing: .04em; text-transform: uppercase; margin-bottom: 7px; }
+.wide-field { grid-column: 1 / -1; }
+.tool-result-card { display: grid; gap: 13px; border: 1px solid rgba(101, 225, 196, .22); border-radius: 15px; background: linear-gradient(145deg, rgba(57, 153, 132, .15), rgba(20, 35, 56, .72)); padding: 23px; }
+.tool-result-card > strong { color: var(--accent); font: 27px Georgia, serif; line-height: 1.35; overflow-wrap: anywhere; white-space: pre-wrap; }
+.tool-details { max-height: 380px; overflow: auto; margin: 0; padding: 14px; border: 1px solid var(--line); border-radius: 10px; color: #b9c9dc; background: rgba(4, 12, 23, .45); font: 11px/1.55 ui-monospace, SFMono-Regular, Consolas, monospace; white-space: pre-wrap; overflow-wrap: anywhere; }
 .metric-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
 .metric-card { min-height: 115px; display: flex; flex-direction: column; justify-content: space-between; background: rgba(20, 35, 56, .65); border: 1px solid var(--line); border-radius: 13px; padding: 16px; }
 .metric-card.accent { border-color: rgba(101, 225, 196, .25); background: linear-gradient(145deg, rgba(57, 153, 132, .2), rgba(20, 35, 56, .7)); }
@@ -243,6 +257,7 @@ select { appearance: none; background-image: linear-gradient(45deg, transparent 
   .inline-actions { align-items: stretch; flex-direction: column; }
   .inline-actions button { width: 100%; }
   .app-footer { align-items: flex-start; flex-direction: column; gap: 5px; }
+  .tool-picker-row { grid-template-columns: 1fr; }
 }
 
 @media (max-width: 480px) {

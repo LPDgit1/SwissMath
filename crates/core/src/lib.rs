@@ -1,28 +1,54 @@
 #![forbid(unsafe_code)]
 
+mod arithmetic;
 mod bitops;
 mod congruence;
 mod crt;
+mod discovery;
+mod fractions;
+mod linear_algebra;
 mod modular;
 mod modulus;
 mod number_theory;
+mod polynomials;
 mod quadratic;
 mod residue;
 mod sieve;
 mod wide_primality;
 
+pub use arithmetic::{
+    BaseConversionError, ExtendedGcd, IntegerRoot, PerfectPower, extended_gcd, format_in_base,
+    integer_nth_root, lcm, parse_in_base, perfect_power,
+};
 pub use congruence::{
     LinearCongruence, LinearSolution, LinearSolveResult, solve_linear_congruence,
     solve_linear_system,
 };
 pub use crt::{Congruence, crt_compatible, crt_fold, crt_pair};
+pub use discovery::{
+    DiscoveryError, GuessCandidate, IntegerRelation, RecurrenceCandidate, berlekamp_massey,
+    find_recurrence, guess_sequence, pslq,
+};
+pub use fractions::{
+    FractionError, Rational, RationalReconstruction, Rationalization, continued_fraction,
+    convergents, parse_decimal, rational_reconstruct, rational_reconstruct_bounded,
+    rationalize_decimal,
+};
+pub use linear_algebra::{
+    LinearSystemSolution, MatrixError, RationalMatrix, RrefResult, determinant_bareiss,
+    hermite_normal_form, nullspace, rank, rref, smith_normal_form_invariants, solve,
+};
 pub use modular::{ArithmeticError, ModCtx, gcd, inv_mod, reduce_i128};
 pub use modulus::Modulus;
 pub use number_theory::{
-    DecimalIntegerAnalysis, DecimalIntegerAnalysisError, Factorization, IntegerAnalysis,
-    IntegerClassification, MultiplicativeOrderResult, NumberTheoryError, PrimalityAssessment,
-    PrimalityInputError, PrimePower, analyze_integer, analyze_integer_decimal,
-    assess_primality_decimal, factor, is_prime, multiplicative_order,
+    DecimalIntegerAnalysis, DecimalIntegerAnalysisError, DivisorSummary, Factorization,
+    IntegerAnalysis, IntegerClassification, MultiplicativeOrderResult, NumberTheoryError,
+    PrimalityAssessment, PrimalityInputError, PrimePower, Valuation, analyze_integer,
+    analyze_integer_decimal, assess_primality_decimal, factor, is_prime, multiplicative_order,
+    next_prime, previous_prime, valuation,
+};
+pub use polynomials::{
+    FiniteDifferences, Polynomial, PolynomialError, finite_differences, interpolate, polynomial_gcd,
 };
 pub use quadratic::{
     PrimeRoots, QuadraticError, jacobi_symbol, legendre_symbol, modular_square_roots,

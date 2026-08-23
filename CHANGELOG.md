@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.8.0 — Sequences & Multiplicative Structure
+
+- Made finite-field matrices and polynomials permanently retain their prime
+  field and reject cross-field binary operations with `FieldMismatch`.
+- Added O(k² log n) linear-recurrence evaluation and explicit conditional
+  Berlekamp–Massey extrapolation over prime fields.
+- Added deterministic primitive-root search/checking and exact bounded
+  discrete logarithms using Pohlig–Hellman plus BSGS.
+- Added CLI v0.3 and Web v0.4 access, parity tests, benchmark coverage, and
+  explicit solved/no-solution/search-limit semantics.
+
 ## 0.7.0 — Finite-Field Computation
 
 - Hardened exact rational linear algebra, polynomial helpers, Berlekamp–Massey,

@@ -6,16 +6,16 @@ desktop, command-line, and WebAssembly interfaces.
 
 By Luca Pezzullo, 2026
 
-Current source status: SwissMath Core v0.7, Web v0.3, and Research Workflow
-v0.2. The public deployment may lag the validated local source release.
+Current source status: SwissMath Core v0.8, Web v0.4, CLI v0.3, and Desktop
+v0.5. The public deployment may lag the validated local source release.
 
 ## Try it online
 
 [Open SwissMath Web](https://swissmath.lucapezzullo.chatgpt.site)
 
-The public application is SwissMath Web v0.1, powered by SwissMath Core v0.5.
 Calculations run locally in the browser through WebAssembly; no application
-backend or telemetry is required.
+backend or telemetry is required. Check the version shown in the application,
+because the public deployment may lag the source repository.
 
 ## What it does
 
@@ -35,6 +35,10 @@ backend or telemetry is required.
   inverse, and kernel;
 - exact dense polynomials over Fp: arithmetic, division with remainder, monic
   GCD, extended GCD, derivative, evaluation, and modular exponentiation;
+- O(k² log n) exact nth-term evaluation for supplied linear recurrences over
+  Fp, plus explicitly conditional Berlekamp–Massey extrapolation;
+- primitive-root search/checking and bounded exact discrete logarithms over
+  Fp with solved, no-solution, and search-limit outcomes;
 - Jacobi and Legendre symbols;
 - modular roots in the currently supported domains.
 
@@ -66,12 +70,21 @@ Primality labels are deliberately precise:
 
 All surfaces reuse the same `swissmath-core` implementation.
 
-### Core v0.7 finite-field domain
+### Core v0.8 finite-field and multiplicative domain
 
 Finite-field operations accept only a prime `p` in the exact `u64` domain.
 Inputs are reduced to canonical residues `0..p-1`; composite moduli are rejected.
-This release deliberately does not implement extension fields, polynomial
-factorization, discrete logarithms, or a generic algebra framework.
+Matrices and polynomials retain their own field and reject cross-field binary
+operations. Multiplicative-group tools operate only in Fp*. Discrete logarithms
+use Pohlig–Hellman with a bounded baby-step/giant-step subroutine; a search-limit
+result means the exact algorithm refused an oversized table before allocation,
+not that the mathematical answer is uncertain. This release deliberately does
+not implement extension fields, polynomial factorization, or generic algebra or
+group frameworks.
+
+An inferred recurrence is the minimal recurrence fitting the supplied finite
+prefix over Fp. Extrapolated terms are exact under that inferred model, but do
+not prove that an unknown generating process follows it indefinitely.
 
 ### Rational reconstruction semantics
 
@@ -163,6 +176,9 @@ target\release\swissmath.exe prime 1000000007
 target\release\swissmath.exe factor 360 --json
 target\release\swissmath.exe matrix det 5 "1,2;3,4" --json
 target\release\swissmath.exe polynomial derivative 5 "0,0,0,0,0,1" --json
+target\release\swissmath.exe recurrence nth 1000000007 "0,1" "1,1" 1000000000000000000 --json
+target\release\swissmath.exe group primitive-root 17 --json
+target\release\swissmath.exe group dlog 97 5 83 --json
 ```
 
 Streaming PowerShell example:
@@ -241,7 +257,7 @@ optional `-BundleName` parameter can produce, for example:
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File scripts/package-source.ps1
-powershell -ExecutionPolicy Bypass -File scripts/package-source.ps1 -BundleName SwissMath-v0.7-source
+powershell -ExecutionPolicy Bypass -File scripts/package-source.ps1 -BundleName SwissMath-v0.8-source
 ```
 
 Archives exclude build output, local work folders, binaries, `.git`, and other

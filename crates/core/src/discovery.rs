@@ -1,6 +1,6 @@
 use num_bigint::BigInt;
 
-use crate::{ModCtx, Modulus, Rational, finite_differences, interpolate, is_prime};
+use crate::{ModCtx, Modulus, PrimeField, Rational, finite_differences, interpolate, is_prime};
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum DiscoveryError {
@@ -114,16 +114,41 @@ pub fn pslq(
 }
 
 pub fn berlekamp_massey(sequence: &[i64], modulus: u64) -> Result<Vec<i64>, DiscoveryError> {
+    if modulus < 2 || !is_prime(modulus) {
+        return Err(DiscoveryError::InvalidModulus);
+    }
+    let field = PrimeField::new(modulus).map_err(|_| DiscoveryError::InvalidModulus)?;
+    berlekamp_massey_mod_prime(
+        &sequence
+            .iter()
+            .map(|&value| i128::from(value))
+            .collect::<Vec<_>>(),
+        field,
+    )?
+    .iter()
+    .map(|&value| {
+        let centered = if value > modulus / 2 {
+            i128::from(value) - i128::from(modulus)
+        } else {
+            i128::from(value)
+        };
+        i64::try_from(centered).map_err(|_| DiscoveryError::CoefficientLimit)
+    })
+    .collect()
+}
+
+pub fn berlekamp_massey_mod_prime(
+    sequence: &[i128],
+    field: PrimeField,
+) -> Result<Vec<u64>, DiscoveryError> {
     if sequence.len() < 2 {
         return Err(DiscoveryError::InsufficientData);
     }
-    if modulus < 3 || !is_prime(modulus) {
-        return Err(DiscoveryError::InvalidModulus);
-    }
-    let context = ModCtx::new(Modulus::new(modulus).expect("prime modulus is nonzero"));
+    let context =
+        ModCtx::new(Modulus::new(field.modulus()).expect("a prime field has a nonzero modulus"));
     let values = sequence
         .iter()
-        .map(|&value| i128::from(value).rem_euclid(i128::from(modulus)) as u64)
+        .map(|&value| field.normalize(value))
         .collect::<Vec<_>>();
     let mut c = vec![1_u64];
     let mut b = vec![1_u64];
@@ -165,18 +190,15 @@ pub fn berlekamp_massey(sequence: &[i64], modulus: u64) -> Result<Vec<i64>, Disc
             shift += 1;
         }
     }
-    let coefficients = (1..=order)
+    Ok((1..=order)
         .map(|index| {
-            let value = if c[index] == 0 { 0 } else { modulus - c[index] };
-            if value > modulus / 2 {
-                i64::try_from(i128::from(value) - i128::from(modulus))
-                    .expect("signed residue fits i64")
+            if c[index] == 0 {
+                0
             } else {
-                i64::try_from(value).expect("selected modulus fits i64")
+                field.modulus() - c[index]
             }
         })
-        .collect();
-    Ok(coefficients)
+        .collect())
 }
 
 pub fn find_recurrence(sequence: &[i64]) -> Result<RecurrenceCandidate, DiscoveryError> {

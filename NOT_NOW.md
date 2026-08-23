@@ -1,15 +1,13 @@
 # Not now
 
-SwissMath Core v0.5 intentionally stops at exact u64 arithmetic plus a bounded
-exact-first u128 primality proof, a large-number probable-primality assessment,
-and focused quadratic unit-root operations.
+SwissMath Core v0.8 intentionally remains a focused exact-computation toolkit.
 The following ideas remain out of scope until a concrete consumer and
 measurements justify them:
 
-- symbolic algebra, polynomial/finite-field APIs, expression parsing, DSLs, or
-  generic proof/solver frameworks;
-- prime generation, prime counting, factor tables, divisor functions, or exact
-  arbitrary-precision factorization/φ/λ/order;
+- symbolic algebra, expression parsing, DSLs, or generic proof/solver
+  frameworks;
+- prime counting, factor tables, or exact arbitrary-precision
+  factorization/φ/λ/order;
 - formal primality certificate export/verification (ECPP, APR-CL, AKS, Pratt),
   general arbitrary-precision modular arithmetic, sparse/compressed residue-set
   backends, or global-LCM
@@ -25,6 +23,10 @@ measurements justify them:
 - custom allocators, production `unsafe`, target-specific tuning, or speculative
   arithmetic-reduction machinery;
 - a query language or a frontend framework for the desktop UI.
+- recurrence-period search and asymptotically faster recurrence algorithms;
+- Pollard-rho discrete log, kth roots via discrete logs, and index calculus;
+- GF(p^k), polynomial factorization, and generic group/sequence frameworks;
+- Web Workers for expensive finite-field or multiplicative-group calculations.
 
 The v0.2 sieve deliberately uses one simple normalized anchor planner. Future
 optimization should be evidence-driven by the deterministic benchmark rather

@@ -72,7 +72,7 @@ fn reconstruction_and_json_are_structured() {
     assert_eq!(value["result"]["numerator"], "7");
     assert_eq!(value["result"]["denominator"], "1");
     assert_eq!(value["exactness"], "exact");
-    assert_eq!(value["core_version"], "0.7");
+    assert_eq!(value["core_version"], "0.8");
     assert!(value["elapsed_ms"].is_number());
 }
 
@@ -156,4 +156,45 @@ fn finite_field_family_accepts_a_whole_matrix_from_stdin() {
     );
     let value: Value = serde_json::from_slice(&rank.stdout).unwrap();
     assert_eq!(value["result"]["rank"], 1);
+}
+
+#[test]
+fn recurrence_and_group_commands_have_exact_structured_results() {
+    let recurrence = run(
+        &["recurrence", "nth", "101", "0,1", "1,1", "10", "--json"],
+        None,
+    );
+    assert!(recurrence.status.success());
+    let value: Value = serde_json::from_slice(&recurrence.stdout).unwrap();
+    assert_eq!(value["result"]["value"], "55");
+    assert_eq!(value["exactness"], "exact");
+
+    let inferred = run(
+        &[
+            "recurrence",
+            "infer",
+            "101",
+            "10",
+            "0,1,1,2,3,5,8,13",
+            "--json",
+        ],
+        None,
+    );
+    assert!(inferred.status.success());
+    let value: Value = serde_json::from_slice(&inferred.stdout).unwrap();
+    assert_eq!(value["result"]["value"], "55");
+    assert_eq!(value["exactness"], "inferred_recurrence");
+    assert_eq!(value["result"]["model_verified_on_supplied_prefix"], true);
+
+    let root = run(&["group", "primitive-root", "17", "--json"], None);
+    assert!(root.status.success());
+    let value: Value = serde_json::from_slice(&root.stdout).unwrap();
+    assert_eq!(value["result"]["generator"], "3");
+
+    let dlog = run(&["group", "dlog", "97", "5", "83", "--json"], None);
+    assert!(dlog.status.success());
+    let value: Value = serde_json::from_slice(&dlog.stdout).unwrap();
+    assert_eq!(value["result"]["status"], "solved");
+    assert_eq!(value["result"]["x"], "17");
+    assert_eq!(value["exactness"], "exact");
 }

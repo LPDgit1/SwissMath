@@ -2,6 +2,7 @@ use crate::{FiniteFieldError, PrimeField};
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct FpMatrix {
+    field: PrimeField,
     rows: usize,
     columns: usize,
     data: Vec<u64>,
@@ -33,6 +34,7 @@ impl FpMatrix {
             return Err(FiniteFieldError::Ragged);
         }
         Ok(Self {
+            field,
             rows: rows.len(),
             columns,
             data: rows
@@ -42,9 +44,10 @@ impl FpMatrix {
         })
     }
 
-    fn canonical(rows: usize, columns: usize, data: Vec<u64>) -> Self {
+    fn from_normalized(field: PrimeField, rows: usize, columns: usize, data: Vec<u64>) -> Self {
         debug_assert_eq!(data.len(), rows * columns);
         Self {
+            field,
             rows,
             columns,
             data,
@@ -54,6 +57,11 @@ impl FpMatrix {
     #[must_use]
     pub const fn rows(&self) -> usize {
         self.rows
+    }
+
+    #[must_use]
+    pub const fn field(&self) -> PrimeField {
+        self.field
     }
 
     #[must_use]
@@ -74,33 +82,38 @@ impl FpMatrix {
             .collect()
     }
 
-    pub fn add(&self, field: PrimeField, other: &Self) -> Result<Self, FiniteFieldError> {
+    pub fn add(&self, other: &Self) -> Result<Self, FiniteFieldError> {
+        self.same_field(other)?;
         self.same_shape(other)?;
-        Ok(Self::canonical(
+        Ok(Self::from_normalized(
+            self.field,
             self.rows,
             self.columns,
             self.data
                 .iter()
                 .zip(&other.data)
-                .map(|(&left, &right)| field.add(left, right))
+                .map(|(&left, &right)| self.field.add(left, right))
                 .collect(),
         ))
     }
 
-    pub fn sub(&self, field: PrimeField, other: &Self) -> Result<Self, FiniteFieldError> {
+    pub fn sub(&self, other: &Self) -> Result<Self, FiniteFieldError> {
+        self.same_field(other)?;
         self.same_shape(other)?;
-        Ok(Self::canonical(
+        Ok(Self::from_normalized(
+            self.field,
             self.rows,
             self.columns,
             self.data
                 .iter()
                 .zip(&other.data)
-                .map(|(&left, &right)| field.sub(left, right))
+                .map(|(&left, &right)| self.field.sub(left, right))
                 .collect(),
         ))
     }
 
-    pub fn mul(&self, field: PrimeField, other: &Self) -> Result<Self, FiniteFieldError> {
+    pub fn mul(&self, other: &Self) -> Result<Self, FiniteFieldError> {
+        self.same_field(other)?;
         if self.columns != other.rows {
             return Err(FiniteFieldError::DimensionMismatch);
         }
@@ -113,56 +126,59 @@ impl FpMatrix {
                 }
                 for column in 0..other.columns {
                     let target = row * other.columns + column;
-                    output[target] =
-                        field.add(output[target], field.mul(left, other[(inner, column)]));
+                    output[target] = self
+                        .field
+                        .add(output[target], self.field.mul(left, other[(inner, column)]));
                 }
             }
         }
-        Ok(Self::canonical(self.rows, other.columns, output))
+        Ok(Self::from_normalized(
+            self.field,
+            self.rows,
+            other.columns,
+            output,
+        ))
     }
 
-    pub fn mul_vector(
-        &self,
-        field: PrimeField,
-        vector: &[i128],
-    ) -> Result<Vec<u64>, FiniteFieldError> {
+    pub fn mul_vector(&self, vector: &[i128]) -> Result<Vec<u64>, FiniteFieldError> {
         if self.columns != vector.len() {
             return Err(FiniteFieldError::DimensionMismatch);
         }
         let vector = vector
             .iter()
-            .map(|&value| field.normalize(value))
+            .map(|&value| self.field.normalize(value))
             .collect::<Vec<_>>();
         Ok((0..self.rows)
             .map(|row| {
                 (0..self.columns).fold(0, |sum, column| {
-                    field.add(sum, field.mul(self[(row, column)], vector[column]))
+                    self.field
+                        .add(sum, self.field.mul(self[(row, column)], vector[column]))
                 })
             })
             .collect())
     }
 
     #[must_use]
-    pub fn rref(&self, field: PrimeField) -> FpRrefResult {
+    pub fn rref(&self) -> FpRrefResult {
         let (data, pivots) = eliminate(
-            field,
+            self.field,
             self.data.clone(),
             self.rows,
             self.columns,
             self.columns,
         );
         FpRrefResult {
-            matrix: Self::canonical(self.rows, self.columns, data),
+            matrix: Self::from_normalized(self.field, self.rows, self.columns, data),
             pivot_columns: pivots,
         }
     }
 
     #[must_use]
-    pub fn rank(&self, field: PrimeField) -> usize {
-        self.rref(field).pivot_columns.len()
+    pub fn rank(&self) -> usize {
+        self.rref().pivot_columns.len()
     }
 
-    pub fn determinant(&self, field: PrimeField) -> Result<u64, FiniteFieldError> {
+    pub fn determinant(&self) -> Result<u64, FiniteFieldError> {
         if self.rows != self.columns {
             return Err(FiniteFieldError::NotSquare);
         }
@@ -176,30 +192,29 @@ impl FpMatrix {
             };
             if pivot != column {
                 swap_rows(&mut data, self.columns, pivot, column);
-                determinant = field.sub(0, determinant);
+                determinant = self.field.sub(0, determinant);
             }
             let pivot_value = data[column * self.columns + column];
-            determinant = field.mul(determinant, pivot_value);
-            let inverse = field
+            determinant = self.field.mul(determinant, pivot_value);
+            let inverse = self
+                .field
                 .inverse(pivot_value)
                 .expect("a nonzero field value is invertible");
             for row in column + 1..self.rows {
-                let factor = field.mul(data[row * self.columns + column], inverse);
+                let factor = self.field.mul(data[row * self.columns + column], inverse);
                 for target_column in column..self.columns {
                     let target = row * self.columns + target_column;
                     let source = column * self.columns + target_column;
-                    data[target] = field.sub(data[target], field.mul(factor, data[source]));
+                    data[target] = self
+                        .field
+                        .sub(data[target], self.field.mul(factor, data[source]));
                 }
             }
         }
         Ok(determinant)
     }
 
-    pub fn solve(
-        &self,
-        field: PrimeField,
-        rhs: &[i128],
-    ) -> Result<FpLinearSystemSolution, FiniteFieldError> {
+    pub fn solve(&self, rhs: &[i128]) -> Result<FpLinearSystemSolution, FiniteFieldError> {
         if rhs.len() != self.rows {
             return Err(FiniteFieldError::DimensionMismatch);
         }
@@ -207,10 +222,15 @@ impl FpMatrix {
         let mut augmented = Vec::with_capacity(self.rows * augmented_columns);
         for (row, &value) in rhs.iter().enumerate() {
             augmented.extend_from_slice(&self.data[row * self.columns..(row + 1) * self.columns]);
-            augmented.push(field.normalize(value));
+            augmented.push(self.field.normalize(value));
         }
-        let (reduced, pivots) =
-            eliminate(field, augmented, self.rows, augmented_columns, self.columns);
+        let (reduced, pivots) = eliminate(
+            self.field,
+            augmented,
+            self.rows,
+            augmented_columns,
+            self.columns,
+        );
         for row in 0..self.rows {
             let offset = row * augmented_columns;
             if reduced[offset..offset + self.columns]
@@ -236,21 +256,21 @@ impl FpMatrix {
             })
             .collect();
         let coefficient_rref = FpRrefResult {
-            matrix: Self::canonical(self.rows, self.columns, coefficient_data),
+            matrix: Self::from_normalized(self.field, self.rows, self.columns, coefficient_data),
             pivot_columns: pivots,
         };
         Ok(FpLinearSystemSolution::Infinite {
             particular,
-            kernel_basis: kernel_from_rref(field, &coefficient_rref),
+            kernel_basis: kernel_from_rref(&coefficient_rref),
         })
     }
 
     #[must_use]
-    pub fn kernel(&self, field: PrimeField) -> Vec<Vec<u64>> {
-        kernel_from_rref(field, &self.rref(field))
+    pub fn kernel(&self) -> Vec<Vec<u64>> {
+        kernel_from_rref(&self.rref())
     }
 
-    pub fn inverse(&self, field: PrimeField) -> Result<Self, FiniteFieldError> {
+    pub fn inverse(&self) -> Result<Self, FiniteFieldError> {
         if self.rows != self.columns {
             return Err(FiniteFieldError::NotSquare);
         }
@@ -262,7 +282,7 @@ impl FpMatrix {
             }
             augmented[row * width + self.columns + row] = 1;
         }
-        let (reduced, pivots) = eliminate(field, augmented, self.rows, width, self.columns);
+        let (reduced, pivots) = eliminate(self.field, augmented, self.rows, width, self.columns);
         if pivots.len() != self.columns {
             return Err(FiniteFieldError::Singular);
         }
@@ -273,7 +293,23 @@ impl FpMatrix {
                     .copied()
             })
             .collect();
-        Ok(Self::canonical(self.rows, self.columns, data))
+        Ok(Self::from_normalized(
+            self.field,
+            self.rows,
+            self.columns,
+            data,
+        ))
+    }
+
+    fn same_field(&self, other: &Self) -> Result<(), FiniteFieldError> {
+        if self.field == other.field {
+            Ok(())
+        } else {
+            Err(FiniteFieldError::FieldMismatch {
+                left_modulus: self.field.modulus(),
+                right_modulus: other.field.modulus(),
+            })
+        }
     }
 
     fn same_shape(&self, other: &Self) -> Result<(), FiniteFieldError> {
@@ -347,14 +383,14 @@ fn swap_rows(data: &mut [u64], columns: usize, left: usize, right: usize) {
     }
 }
 
-fn kernel_from_rref(field: PrimeField, reduced: &FpRrefResult) -> Vec<Vec<u64>> {
+fn kernel_from_rref(reduced: &FpRrefResult) -> Vec<Vec<u64>> {
     (0..reduced.matrix.columns)
         .filter(|column| !reduced.pivot_columns.contains(column))
         .map(|free| {
             let mut vector = vec![0; reduced.matrix.columns];
             vector[free] = 1;
             for (row, &pivot) in reduced.pivot_columns.iter().enumerate() {
-                vector[pivot] = field.sub(0, reduced.matrix[(row, free)]);
+                vector[pivot] = reduced.matrix.field.sub(0, reduced.matrix[(row, free)]);
             }
             vector
         })

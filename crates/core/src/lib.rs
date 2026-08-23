@@ -12,9 +12,11 @@ mod fractions;
 mod linear_algebra;
 mod modular;
 mod modulus;
+mod multiplicative_groups;
 mod number_theory;
 mod polynomials;
 mod quadratic;
+mod recurrence;
 mod residue;
 mod sieve;
 mod wide_primality;
@@ -30,7 +32,7 @@ pub use congruence::{
 pub use crt::{Congruence, crt_compatible, crt_fold, crt_pair};
 pub use discovery::{
     DiscoveryError, GuessCandidate, IntegerRelation, RecurrenceCandidate, berlekamp_massey,
-    find_recurrence, guess_sequence, pslq,
+    berlekamp_massey_mod_prime, find_recurrence, guess_sequence, pslq,
 };
 pub use finite_field::{FiniteFieldError, PrimeField};
 pub use finite_field_matrix::{FpLinearSystemSolution, FpMatrix, FpRrefResult};
@@ -46,6 +48,9 @@ pub use linear_algebra::{
 };
 pub use modular::{ArithmeticError, ModCtx, gcd, inv_mod, reduce_i128};
 pub use modulus::Modulus;
+pub use multiplicative_groups::{
+    DiscreteLogResult, MultiplicativeGroupError, discrete_log, is_primitive_root, primitive_root,
+};
 pub use number_theory::{
     DecimalIntegerAnalysis, DecimalIntegerAnalysisError, DivisorSummary, Factorization,
     IntegerAnalysis, IntegerClassification, MultiplicativeOrderResult, NumberTheoryError,
@@ -59,6 +64,10 @@ pub use polynomials::{
 pub use quadratic::{
     PrimeRoots, QuadraticError, jacobi_symbol, legendre_symbol, modular_square_roots,
     prime_square_roots,
+};
+pub use recurrence::{
+    InferredRecurrenceResult, RecurrenceError, infer_recurrence_nth_mod_prime,
+    linear_recurrence_nth_mod_prime,
 };
 pub use residue::{ResidueError, ResidueIter, ResidueSet, required_heap_bytes};
 pub use sieve::{ModularFilter, ModularFilterBuild, ModularSieve, SieveError, SieveResult};

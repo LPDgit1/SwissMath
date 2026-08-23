@@ -8,13 +8,15 @@ use std::time::Instant;
 use serde::Serialize;
 use serde_json::{Value, json};
 use swissmath_core::{
-    DecimalIntegerAnalysis, FpLinearSystemSolution, FpMatrix, FpPolynomial, LinearCongruence,
-    LinearSolution, Modulus, PrimalityAssessment, PrimeField, Valuation, analyze_integer_decimal,
-    assess_primality_decimal, extended_gcd, factor, inv_mod, modular_square_roots, next_prime,
-    previous_prime, rational_reconstruct, solve_linear_congruence, valuation,
+    DecimalIntegerAnalysis, DiscreteLogResult, FpLinearSystemSolution, FpMatrix, FpPolynomial,
+    LinearCongruence, LinearSolution, Modulus, PrimalityAssessment, PrimeField, Valuation,
+    analyze_integer_decimal, assess_primality_decimal, discrete_log, extended_gcd, factor,
+    infer_recurrence_nth_mod_prime, inv_mod, is_primitive_root, linear_recurrence_nth_mod_prime,
+    modular_square_roots, next_prime, previous_prime, primitive_root, rational_reconstruct,
+    solve_linear_congruence, valuation,
 };
 
-const CORE_VERSION: &str = "0.7";
+const CORE_VERSION: &str = "0.8";
 
 #[derive(Debug)]
 struct Cli {
@@ -164,11 +166,13 @@ Comandi: prime, factor, analyze, gcd, xgcd, inverse, congruence,\n\
          mobius, radical, squarefree, divisor-count, divisor-sum, divisors\n\
          matrix <add|sub|mul|matvec|det|rank|rref|solve|inverse|kernel> <p> ...\n\
          polynomial <add|sub|mul|divrem|gcd|xgcd|derivative|evaluate|powmod> <p> ...\n\
+         recurrence <nth|infer> <p> ...\n\
+         group <primitive-root|is-primitive-root|dlog> <p> ...\n\
 CSV: swissmath <comando-scalare> --input file.csv --column n [--output out.csv]"
 }
 
 fn is_field_family(command: &str) -> bool {
-    matches!(command, "matrix" | "polynomial")
+    matches!(command, "matrix" | "polynomial" | "recurrence")
 }
 
 fn run_stream(cli: &Cli) -> Result<(), String> {
@@ -535,7 +539,126 @@ fn execute(command: &str, values: &[String]) -> Result<OperationResult, String> 
         }
         "matrix" => operation_fp_matrix(values),
         "polynomial" => operation_fp_polynomial(values),
+        "recurrence" => operation_recurrence(values),
+        "group" => operation_group(values),
         _ => Err(format!("comando sconosciuto: {command}")),
+    }
+}
+
+fn operation_recurrence(values: &[String]) -> Result<OperationResult, String> {
+    if values.len() < 4 {
+        return Err("usage: swissmath recurrence <nth|infer> <prime> ...".to_owned());
+    }
+    let operation = values[0].as_str();
+    let field = prime_field(&values[1])?;
+    match operation {
+        "nth" => {
+            require_arity(values, 5)?;
+            let initial = parse_i128_list(&values[2])?;
+            let coefficients = parse_i128_list(&values[3])?;
+            let n = parse_u64(&values[4])?;
+            let value = linear_recurrence_nth_mod_prime(&initial, &coefficients, n, field)
+                .map_err(|error| format!("recurrence evaluation failed: {error:?}"))?;
+            exact(
+                value.to_string(),
+                json!({
+                    "status": "exact", "value": value.to_string(), "n": n.to_string(),
+                    "order": coefficients.len(), "modulus": field.modulus().to_string(),
+                    "recurrence": coefficients.iter().map(i128::to_string).collect::<Vec<_>>()
+                }),
+            )
+        }
+        "infer" => {
+            require_arity(values, 4)?;
+            let n = parse_u64(&values[2])?;
+            let sequence = parse_i128_list(&values[3])?;
+            let result = infer_recurrence_nth_mod_prime(&sequence, n, field)
+                .map_err(|error| format!("recurrence inference failed: {error:?}"))?;
+            Ok(OperationResult {
+                human: format!(
+                    "a_{n} = {} mod {} (inferred recurrence: [{}])",
+                    result.predicted_term,
+                    result.modulus,
+                    result
+                        .coefficients
+                        .iter()
+                        .map(u64::to_string)
+                        .collect::<Vec<_>>()
+                        .join(", ")
+                ),
+                result: json!({
+                    "status": "inferred_recurrence", "value": result.predicted_term.to_string(),
+                    "n": n.to_string(), "order": result.order,
+                    "coefficients": result.coefficients.iter().map(u64::to_string).collect::<Vec<_>>(),
+                    "terms_checked": result.terms_checked,
+                    "model_verified_on_supplied_prefix": result.model_verified_on_supplied_prefix,
+                    "modulus": result.modulus.to_string()
+                }),
+                exactness: "inferred_recurrence",
+            })
+        }
+        _ => Err(format!("unknown recurrence operation: {operation}")),
+    }
+}
+
+fn operation_group(values: &[String]) -> Result<OperationResult, String> {
+    if values.len() < 2 {
+        return Err(
+            "usage: swissmath group <primitive-root|is-primitive-root|dlog> <prime> ...".to_owned(),
+        );
+    }
+    let operation = values[0].as_str();
+    let field = prime_field(&values[1])?;
+    match operation {
+        "primitive-root" => {
+            require_arity(values, 2)?;
+            let generator = primitive_root(field)
+                .map_err(|error| format!("primitive-root search failed: {error:?}"))?;
+            let factors = factor(field.modulus() - 1).map_err(|error| error.to_string())?;
+            exact(
+                generator.to_string(),
+                json!({
+                    "status": "solved", "generator": generator.to_string(),
+                    "order": (field.modulus() - 1).to_string(),
+                    "modulus": field.modulus().to_string(),
+                    "order_factorization": factors.factors().iter().map(|part| format!("{}^{}", part.prime, part.exponent)).collect::<Vec<_>>()
+                }),
+            )
+        }
+        "is-primitive-root" => {
+            require_arity(values, 3)?;
+            let g = parse_i128(&values[2])?;
+            let result = is_primitive_root(g, field)
+                .map_err(|error| format!("primitive-root test failed: {error:?}"))?;
+            exact(
+                result.to_string(),
+                json!({ "status": "solved", "is_primitive_root": result, "g": g.to_string(), "modulus": field.modulus().to_string() }),
+            )
+        }
+        "dlog" => {
+            require_arity(values, 4)?;
+            let g = parse_i128(&values[2])?;
+            let h = parse_i128(&values[3])?;
+            match discrete_log(g, h, field)
+                .map_err(|error| format!("discrete logarithm failed: {error:?}"))?
+            {
+                DiscreteLogResult::Solved { x, order } => exact(
+                    format!("x = {x}"),
+                    json!({ "status": "solved", "x": x.to_string(), "subgroup_order": order.to_string(), "modulus": field.modulus().to_string() }),
+                ),
+                DiscreteLogResult::NoSolution { order } => exact(
+                    "no solution in the subgroup generated by g".to_owned(),
+                    json!({ "status": "no_solution", "subgroup_order": order.to_string(), "modulus": field.modulus().to_string() }),
+                ),
+                DiscreteLogResult::SearchLimitReached { order } => exact(
+                    "search limit reached".to_owned(),
+                    json!({ "status": "search_limit_reached", "subgroup_order": order.to_string(), "modulus": field.modulus().to_string() }),
+                ),
+            }
+        }
+        _ => Err(format!(
+            "unknown multiplicative-group operation: {operation}"
+        )),
     }
 }
 
@@ -552,9 +675,9 @@ fn operation_fp_matrix(values: &[String]) -> Result<OperationResult, String> {
             require_arity(values, 4)?;
             let right = parse_fp_matrix(field, &values[3])?;
             let result = match operation {
-                "add" => left.add(field, &right),
-                "sub" => left.sub(field, &right),
-                _ => left.mul(field, &right),
+                "add" => left.add(&right),
+                "sub" => left.sub(&right),
+                _ => left.mul(&right),
             }
             .map_err(field_error)?;
             exact(
@@ -565,7 +688,7 @@ fn operation_fp_matrix(values: &[String]) -> Result<OperationResult, String> {
         "matvec" => {
             require_arity(values, 4)?;
             let vector = parse_i128_list(&values[3])?;
-            let result = left.mul_vector(field, &vector).map_err(field_error)?;
+            let result = left.mul_vector(&vector).map_err(field_error)?;
             exact(
                 format_vector(&result),
                 json!({ "vector": result, "modulus": field.modulus().to_string() }),
@@ -573,7 +696,7 @@ fn operation_fp_matrix(values: &[String]) -> Result<OperationResult, String> {
         }
         "det" => {
             require_arity(values, 3)?;
-            let result = left.determinant(field).map_err(field_error)?;
+            let result = left.determinant().map_err(field_error)?;
             exact(
                 result.to_string(),
                 json!({ "determinant": result.to_string(), "modulus": field.modulus().to_string() }),
@@ -581,7 +704,7 @@ fn operation_fp_matrix(values: &[String]) -> Result<OperationResult, String> {
         }
         "rank" => {
             require_arity(values, 3)?;
-            let result = left.rank(field);
+            let result = left.rank();
             exact(
                 result.to_string(),
                 json!({ "rank": result, "modulus": field.modulus().to_string() }),
@@ -589,7 +712,7 @@ fn operation_fp_matrix(values: &[String]) -> Result<OperationResult, String> {
         }
         "rref" => {
             require_arity(values, 3)?;
-            let result = left.rref(field);
+            let result = left.rref();
             exact(
                 format_matrix(&result.matrix),
                 json!({ "matrix": matrix_json(&result.matrix), "pivots": result.pivot_columns, "modulus": field.modulus().to_string() }),
@@ -597,7 +720,7 @@ fn operation_fp_matrix(values: &[String]) -> Result<OperationResult, String> {
         }
         "inverse" => {
             require_arity(values, 3)?;
-            let result = left.inverse(field).map_err(field_error)?;
+            let result = left.inverse().map_err(field_error)?;
             exact(
                 format_matrix(&result),
                 json!({ "matrix": matrix_json(&result), "modulus": field.modulus().to_string() }),
@@ -605,7 +728,7 @@ fn operation_fp_matrix(values: &[String]) -> Result<OperationResult, String> {
         }
         "kernel" => {
             require_arity(values, 3)?;
-            let result = left.kernel(field);
+            let result = left.kernel();
             exact(
                 result
                     .iter()
@@ -618,7 +741,7 @@ fn operation_fp_matrix(values: &[String]) -> Result<OperationResult, String> {
         "solve" => {
             require_arity(values, 4)?;
             let rhs = parse_i128_list(&values[3])?;
-            match left.solve(field, &rhs).map_err(field_error)? {
+            match left.solve(&rhs).map_err(field_error)? {
                 FpLinearSystemSolution::None => exact(
                     "no solution".to_owned(),
                     json!({ "kind": "none", "modulus": field.modulus().to_string() }),
@@ -663,10 +786,10 @@ fn operation_fp_polynomial(values: &[String]) -> Result<OperationResult, String>
             require_arity(values, 4)?;
             let right = parse_fp_polynomial(field, &values[3])?;
             let result = match operation {
-                "add" => left.add(field, &right),
-                "sub" => left.sub(field, &right),
-                "mul" => left.mul(field, &right),
-                _ => left.gcd(field, &right).map_err(field_error)?,
+                "add" => left.add(&right).map_err(field_error)?,
+                "sub" => left.sub(&right).map_err(field_error)?,
+                "mul" => left.mul(&right).map_err(field_error)?,
+                _ => left.gcd(&right).map_err(field_error)?,
             };
             exact(
                 format_polynomial(&result),
@@ -676,7 +799,7 @@ fn operation_fp_polynomial(values: &[String]) -> Result<OperationResult, String>
         "divrem" => {
             require_arity(values, 4)?;
             let right = parse_fp_polynomial(field, &values[3])?;
-            let (quotient, remainder) = left.div_rem(field, &right).map_err(field_error)?;
+            let (quotient, remainder) = left.div_rem(&right).map_err(field_error)?;
             exact(
                 format!(
                     "quotient: {}; remainder: {}",
@@ -689,7 +812,7 @@ fn operation_fp_polynomial(values: &[String]) -> Result<OperationResult, String>
         "xgcd" => {
             require_arity(values, 4)?;
             let right = parse_fp_polynomial(field, &values[3])?;
-            let result = left.extended_gcd(field, &right).map_err(field_error)?;
+            let result = left.extended_gcd(&right).map_err(field_error)?;
             exact(
                 format_polynomial(&result.gcd),
                 json!({ "gcd": result_json(&result.gcd), "left_coefficient": result_json(&result.left_coefficient), "right_coefficient": result_json(&result.right_coefficient), "modulus": field.modulus().to_string() }),
@@ -697,7 +820,7 @@ fn operation_fp_polynomial(values: &[String]) -> Result<OperationResult, String>
         }
         "derivative" => {
             require_arity(values, 3)?;
-            let result = left.derivative(field);
+            let result = left.derivative();
             exact(
                 format_polynomial(&result),
                 json!({ "coefficients": result_json(&result), "modulus": field.modulus().to_string() }),
@@ -705,7 +828,7 @@ fn operation_fp_polynomial(values: &[String]) -> Result<OperationResult, String>
         }
         "evaluate" => {
             require_arity(values, 4)?;
-            let result = left.evaluate(field, parse_i128(&values[3])?);
+            let result = left.evaluate(parse_i128(&values[3])?);
             exact(
                 result.to_string(),
                 json!({ "value": result.to_string(), "modulus": field.modulus().to_string() }),
@@ -715,9 +838,7 @@ fn operation_fp_polynomial(values: &[String]) -> Result<OperationResult, String>
             require_arity(values, 5)?;
             let exponent = parse_u64(&values[3])?;
             let modulus = parse_fp_polynomial(field, &values[4])?;
-            let result = left
-                .pow_mod(field, exponent, &modulus)
-                .map_err(field_error)?;
+            let result = left.pow_mod(exponent, &modulus).map_err(field_error)?;
             exact(
                 format_polynomial(&result),
                 json!({ "coefficients": result_json(&result), "modulus": field.modulus().to_string() }),

@@ -3,6 +3,10 @@ use crate::{ModCtx, Modulus, is_prime};
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum FiniteFieldError {
     InvalidPrime,
+    FieldMismatch {
+        left_modulus: u64,
+        right_modulus: u64,
+    },
     Empty,
     Ragged,
     DimensionMismatch,

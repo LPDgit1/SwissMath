@@ -8,13 +8,13 @@ use std::time::Instant;
 use serde::Serialize;
 use serde_json::{Value, json};
 use swissmath_core::{
-    DecimalIntegerAnalysis, LinearCongruence, LinearSolution, Modulus, PrimalityAssessment,
-    Valuation, analyze_integer_decimal, assess_primality_decimal, extended_gcd, factor, inv_mod,
-    modular_square_roots, next_prime, previous_prime, rational_reconstruct,
-    solve_linear_congruence, valuation,
+    DecimalIntegerAnalysis, FpLinearSystemSolution, FpMatrix, FpPolynomial, LinearCongruence,
+    LinearSolution, Modulus, PrimalityAssessment, PrimeField, Valuation, analyze_integer_decimal,
+    assess_primality_decimal, extended_gcd, factor, inv_mod, modular_square_roots, next_prime,
+    previous_prime, rational_reconstruct, solve_linear_congruence, valuation,
 };
 
-const CORE_VERSION: &str = "0.6";
+const CORE_VERSION: &str = "0.7";
 
 #[derive(Debug)]
 struct Cli {
@@ -78,13 +78,31 @@ fn run() -> Result<(), String> {
     }
     let cli = parse_cli(arguments.into_iter())?;
     if let Some(path) = cli.input.as_deref() {
+        if is_field_family(&cli.command) {
+            let mut values = cli.values.clone();
+            values.push(
+                std::fs::read_to_string(path)
+                    .map_err(|error| format!("could not read {}: {error}", path.display()))?,
+            );
+            return emit_record(&cli, timed_execute(&cli.command, &values), false);
+        }
         return run_csv(&cli, path);
     }
     if cli.column.is_some() || cli.output.is_some() {
         return Err("--column e --output richiedono --input <file.csv>".to_owned());
     }
-    if !cli.values.is_empty() {
-        let record = timed_execute(&cli.command, &cli.values);
+    let mut values = cli.values.clone();
+    if is_field_family(&cli.command) && !io::stdin().is_terminal() {
+        let mut input = String::new();
+        io::stdin()
+            .read_to_string(&mut input)
+            .map_err(|error| format!("could not read stdin: {error}"))?;
+        if !input.trim().is_empty() {
+            values.push(input);
+        }
+    }
+    if !values.is_empty() {
+        let record = timed_execute(&cli.command, &values);
         return emit_record(&cli, record, false);
     }
     if io::stdin().is_terminal() {
@@ -144,7 +162,13 @@ fn usage() -> &'static str {
 Comandi: prime, factor, analyze, gcd, xgcd, inverse, congruence,\n\
          next-prime, prev-prime, reconstruct, sqrtmod, valuation,\n\
          mobius, radical, squarefree, divisor-count, divisor-sum, divisors\n\
+         matrix <add|sub|mul|matvec|det|rank|rref|solve|inverse|kernel> <p> ...\n\
+         polynomial <add|sub|mul|divrem|gcd|xgcd|derivative|evaluate|powmod> <p> ...\n\
 CSV: swissmath <comando-scalare> --input file.csv --column n [--output out.csv]"
+}
+
+fn is_field_family(command: &str) -> bool {
+    matches!(command, "matrix" | "polynomial")
 }
 
 fn run_stream(cli: &Cli) -> Result<(), String> {
@@ -509,8 +533,267 @@ fn execute(command: &str, values: &[String]) -> Result<OperationResult, String> 
         "mobius" | "radical" | "squarefree" | "divisor-count" | "divisor-sum" | "divisors" => {
             operation_factor_derived(command, parse_u64(one(values)?)?)
         }
+        "matrix" => operation_fp_matrix(values),
+        "polynomial" => operation_fp_polynomial(values),
         _ => Err(format!("comando sconosciuto: {command}")),
     }
+}
+
+fn operation_fp_matrix(values: &[String]) -> Result<OperationResult, String> {
+    if values.len() < 3 {
+        return Err("usage: swissmath matrix <operation> <prime> <matrix> [operand]".to_owned());
+    }
+    let operation = values[0].as_str();
+    let field = prime_field(&values[1])?;
+    let left = parse_fp_matrix(field, &values[2])?;
+    let matrix_json = |matrix: &FpMatrix| json!(matrix.to_rows());
+    match operation {
+        "add" | "sub" | "mul" => {
+            require_arity(values, 4)?;
+            let right = parse_fp_matrix(field, &values[3])?;
+            let result = match operation {
+                "add" => left.add(field, &right),
+                "sub" => left.sub(field, &right),
+                _ => left.mul(field, &right),
+            }
+            .map_err(field_error)?;
+            exact(
+                format_matrix(&result),
+                json!({ "matrix": matrix_json(&result), "modulus": field.modulus().to_string() }),
+            )
+        }
+        "matvec" => {
+            require_arity(values, 4)?;
+            let vector = parse_i128_list(&values[3])?;
+            let result = left.mul_vector(field, &vector).map_err(field_error)?;
+            exact(
+                format_vector(&result),
+                json!({ "vector": result, "modulus": field.modulus().to_string() }),
+            )
+        }
+        "det" => {
+            require_arity(values, 3)?;
+            let result = left.determinant(field).map_err(field_error)?;
+            exact(
+                result.to_string(),
+                json!({ "determinant": result.to_string(), "modulus": field.modulus().to_string() }),
+            )
+        }
+        "rank" => {
+            require_arity(values, 3)?;
+            let result = left.rank(field);
+            exact(
+                result.to_string(),
+                json!({ "rank": result, "modulus": field.modulus().to_string() }),
+            )
+        }
+        "rref" => {
+            require_arity(values, 3)?;
+            let result = left.rref(field);
+            exact(
+                format_matrix(&result.matrix),
+                json!({ "matrix": matrix_json(&result.matrix), "pivots": result.pivot_columns, "modulus": field.modulus().to_string() }),
+            )
+        }
+        "inverse" => {
+            require_arity(values, 3)?;
+            let result = left.inverse(field).map_err(field_error)?;
+            exact(
+                format_matrix(&result),
+                json!({ "matrix": matrix_json(&result), "modulus": field.modulus().to_string() }),
+            )
+        }
+        "kernel" => {
+            require_arity(values, 3)?;
+            let result = left.kernel(field);
+            exact(
+                result
+                    .iter()
+                    .map(|row| format_vector(row))
+                    .collect::<Vec<_>>()
+                    .join("\n"),
+                json!({ "basis": result, "modulus": field.modulus().to_string() }),
+            )
+        }
+        "solve" => {
+            require_arity(values, 4)?;
+            let rhs = parse_i128_list(&values[3])?;
+            match left.solve(field, &rhs).map_err(field_error)? {
+                FpLinearSystemSolution::None => exact(
+                    "no solution".to_owned(),
+                    json!({ "kind": "none", "modulus": field.modulus().to_string() }),
+                ),
+                FpLinearSystemSolution::Unique(solution) => exact(
+                    format_vector(&solution),
+                    json!({ "kind": "unique", "solution": solution, "modulus": field.modulus().to_string() }),
+                ),
+                FpLinearSystemSolution::Infinite {
+                    particular,
+                    kernel_basis,
+                } => exact(
+                    format!(
+                        "particular {}\nkernel {}",
+                        format_vector(&particular),
+                        kernel_basis
+                            .iter()
+                            .map(|row| format_vector(row))
+                            .collect::<Vec<_>>()
+                            .join(" ")
+                    ),
+                    json!({ "kind": "infinite", "particular": particular, "kernel_basis": kernel_basis, "modulus": field.modulus().to_string() }),
+                ),
+            }
+        }
+        _ => Err(format!("unknown matrix operation: {operation}")),
+    }
+}
+
+fn operation_fp_polynomial(values: &[String]) -> Result<OperationResult, String> {
+    if values.len() < 3 {
+        return Err(
+            "usage: swissmath polynomial <operation> <prime> <coefficients> [operand]".to_owned(),
+        );
+    }
+    let operation = values[0].as_str();
+    let field = prime_field(&values[1])?;
+    let left = parse_fp_polynomial(field, &values[2])?;
+    let result_json = |polynomial: &FpPolynomial| json!(polynomial.coefficients());
+    match operation {
+        "add" | "sub" | "mul" | "gcd" => {
+            require_arity(values, 4)?;
+            let right = parse_fp_polynomial(field, &values[3])?;
+            let result = match operation {
+                "add" => left.add(field, &right),
+                "sub" => left.sub(field, &right),
+                "mul" => left.mul(field, &right),
+                _ => left.gcd(field, &right).map_err(field_error)?,
+            };
+            exact(
+                format_polynomial(&result),
+                json!({ "coefficients": result_json(&result), "modulus": field.modulus().to_string() }),
+            )
+        }
+        "divrem" => {
+            require_arity(values, 4)?;
+            let right = parse_fp_polynomial(field, &values[3])?;
+            let (quotient, remainder) = left.div_rem(field, &right).map_err(field_error)?;
+            exact(
+                format!(
+                    "quotient: {}; remainder: {}",
+                    format_polynomial(&quotient),
+                    format_polynomial(&remainder)
+                ),
+                json!({ "quotient": result_json(&quotient), "remainder": result_json(&remainder), "modulus": field.modulus().to_string() }),
+            )
+        }
+        "xgcd" => {
+            require_arity(values, 4)?;
+            let right = parse_fp_polynomial(field, &values[3])?;
+            let result = left.extended_gcd(field, &right).map_err(field_error)?;
+            exact(
+                format_polynomial(&result.gcd),
+                json!({ "gcd": result_json(&result.gcd), "left_coefficient": result_json(&result.left_coefficient), "right_coefficient": result_json(&result.right_coefficient), "modulus": field.modulus().to_string() }),
+            )
+        }
+        "derivative" => {
+            require_arity(values, 3)?;
+            let result = left.derivative(field);
+            exact(
+                format_polynomial(&result),
+                json!({ "coefficients": result_json(&result), "modulus": field.modulus().to_string() }),
+            )
+        }
+        "evaluate" => {
+            require_arity(values, 4)?;
+            let result = left.evaluate(field, parse_i128(&values[3])?);
+            exact(
+                result.to_string(),
+                json!({ "value": result.to_string(), "modulus": field.modulus().to_string() }),
+            )
+        }
+        "powmod" => {
+            require_arity(values, 5)?;
+            let exponent = parse_u64(&values[3])?;
+            let modulus = parse_fp_polynomial(field, &values[4])?;
+            let result = left
+                .pow_mod(field, exponent, &modulus)
+                .map_err(field_error)?;
+            exact(
+                format_polynomial(&result),
+                json!({ "coefficients": result_json(&result), "modulus": field.modulus().to_string() }),
+            )
+        }
+        _ => Err(format!("unknown polynomial operation: {operation}")),
+    }
+}
+
+fn prime_field(value: &str) -> Result<PrimeField, String> {
+    PrimeField::new(parse_u64(value)?).map_err(|_| "the modulus must be a u64 prime".to_owned())
+}
+
+fn parse_i128_list(value: &str) -> Result<Vec<i128>, String> {
+    value
+        .split(|character: char| character == ',' || character.is_whitespace())
+        .filter(|part| !part.is_empty())
+        .map(parse_i128)
+        .collect()
+}
+
+fn parse_fp_matrix(field: PrimeField, value: &str) -> Result<FpMatrix, String> {
+    let rows = value
+        .trim()
+        .trim_matches(|character| matches!(character, '[' | ']'))
+        .split([';', '\n'])
+        .filter(|row| !row.trim().is_empty())
+        .map(|row| parse_i128_list(row.trim_matches(|character| matches!(character, '[' | ']'))))
+        .collect::<Result<Vec<_>, _>>()?;
+    FpMatrix::new(field, &rows).map_err(field_error)
+}
+
+fn parse_fp_polynomial(field: PrimeField, value: &str) -> Result<FpPolynomial, String> {
+    Ok(FpPolynomial::new(field, &parse_i128_list(value)?))
+}
+
+fn format_vector(values: &[u64]) -> String {
+    format!(
+        "[{}]",
+        values
+            .iter()
+            .map(u64::to_string)
+            .collect::<Vec<_>>()
+            .join(" ")
+    )
+}
+
+fn format_matrix(matrix: &FpMatrix) -> String {
+    matrix
+        .to_rows()
+        .iter()
+        .map(|row| format_vector(row))
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
+fn format_polynomial(polynomial: &FpPolynomial) -> String {
+    if polynomial.is_zero() {
+        return "0".to_owned();
+    }
+    polynomial
+        .coefficients()
+        .iter()
+        .enumerate()
+        .filter(|(_, coefficient)| **coefficient != 0)
+        .map(|(degree, coefficient)| match degree {
+            0 => coefficient.to_string(),
+            1 => format!("{coefficient}x"),
+            _ => format!("{coefficient}x^{degree}"),
+        })
+        .collect::<Vec<_>>()
+        .join(" + ")
+}
+
+fn field_error(error: swissmath_core::FiniteFieldError) -> String {
+    format!("finite-field operation failed: {error:?}")
 }
 
 fn operation_prime(input: &str) -> Result<OperationResult, String> {

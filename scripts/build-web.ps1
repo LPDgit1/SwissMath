@@ -53,5 +53,5 @@ foreach ($required in @('index.html', 'app.js', 'styles.css', 'pkg\swissmath_web
     if (-not (Test-Path -LiteralPath $path)) { throw "Asset deploy mancante: $required" }
 }
 
-Write-Output "SwissMath Web v0.2 pronto: $dist"
+Write-Output "SwissMath Web v0.3 pronto: $dist"
 Get-ChildItem -LiteralPath $dist -Recurse -File | Select-Object FullName, Length

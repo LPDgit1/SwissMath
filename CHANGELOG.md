@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.7.0 — Finite-Field Computation
+
+- Hardened exact rational linear algebra, polynomial helpers, Berlekamp–Massey,
+  and PSLQ with deterministic independent invariants before extending Core.
+- Added a small exact prime-field context over the full `u64` prime domain;
+  composite moduli are rejected and values remain canonical residues.
+- Added dense row-major matrix arithmetic, determinant, rank, RREF, solve,
+  inverse, and kernel over Fp using one shared Gauss–Jordan elimination path.
+- Added canonical dense polynomial arithmetic, division, monic GCD, extended
+  GCD, derivative, evaluation, and modular power over Fp.
+- Added exhaustive small-field tests, required F5 smoke cases, dedicated
+  16/32/64/128 matrix and 16/64/256/512 polynomial benchmarks, CLI families,
+  and a progressive Web v0.3 “Finite fields” category.
+- Kept extension fields, polynomial factorization, discrete logarithms, full
+  Smith transforms, and generic algebra infrastructure out of scope.
+
 ## Research Workflow 0.1
 
 - Added a thin native `swissmath` CLI over Core v0.6 with curated scalar

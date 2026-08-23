@@ -72,7 +72,7 @@ fn reconstruction_and_json_are_structured() {
     assert_eq!(value["result"]["numerator"], "7");
     assert_eq!(value["result"]["denominator"], "1");
     assert_eq!(value["exactness"], "exact");
-    assert_eq!(value["core_version"], "0.6");
+    assert_eq!(value["core_version"], "0.7");
     assert!(value["elapsed_ms"].is_number());
 }
 
@@ -121,4 +121,39 @@ fn csv_preserves_columns_and_appends_results() {
     assert!(csv.contains("Bob,abc,error"));
     fs::remove_file(input).unwrap();
     fs::remove_file(output).unwrap();
+}
+
+#[test]
+fn finite_field_matrix_and_polynomial_families_match_required_smoke_cases() {
+    let determinant = run(&["matrix", "det", "5", "1,2;3,4", "--json"], None);
+    assert!(determinant.status.success());
+    let value: Value = serde_json::from_slice(&determinant.stdout).unwrap();
+    assert_eq!(value["result"]["determinant"], "3");
+    assert_eq!(value["exactness"], "exact");
+
+    let inverse = run(&["matrix", "inverse", "5", "1,2;3,4", "--json"], None);
+    let value: Value = serde_json::from_slice(&inverse.stdout).unwrap();
+    assert_eq!(
+        value["result"]["matrix"],
+        serde_json::json!([[3, 1], [4, 2]])
+    );
+
+    let derivative = run(
+        &["polynomial", "derivative", "5", "0,0,0,0,0,1", "--json"],
+        None,
+    );
+    let value: Value = serde_json::from_slice(&derivative.stdout).unwrap();
+    assert_eq!(value["result"]["coefficients"], serde_json::json!([]));
+}
+
+#[test]
+fn finite_field_family_accepts_a_whole_matrix_from_stdin() {
+    let rank = run(&["matrix", "rank", "5", "--json"], Some("1,2,3\n2,4,1\n"));
+    assert!(
+        rank.status.success(),
+        "{}",
+        String::from_utf8_lossy(&rank.stderr)
+    );
+    let value: Value = serde_json::from_slice(&rank.stdout).unwrap();
+    assert_eq!(value["result"]["rank"], 1);
 }

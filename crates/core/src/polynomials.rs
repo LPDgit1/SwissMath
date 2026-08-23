@@ -261,4 +261,44 @@ mod tests {
         let result = finite_differences(&values);
         assert_eq!(result.polynomial_degree, Some(2));
     }
+
+    #[test]
+    fn canonical_zero_and_long_division_identity_hold() {
+        let zero = Polynomial::from_integers(&[0, 0, 0]);
+        assert!(zero.is_zero());
+        assert_eq!(zero.degree(), None);
+
+        let divisor = Polynomial::from_integers(&[-1, 0, 1]);
+        let quotient = Polynomial::from_integers(&[2, 3, 1]);
+        let remainder = Polynomial::from_integers(&[5, -2]);
+        let dividend = divisor
+            .mul(&quotient)
+            .sub(&remainder.scale(&Rational::from_i64(-1)));
+        assert_eq!(dividend.remainder(&divisor).unwrap(), remainder);
+        assert!(remainder.degree().unwrap() < divisor.degree().unwrap());
+    }
+
+    #[test]
+    fn interpolation_reproduces_samples_and_gcd_is_monic() {
+        let source = Polynomial::from_integers(&[-3, 2, 0, 1]);
+        let points = (-3..=3)
+            .map(|x| {
+                let x = Rational::from_i64(x);
+                let y = source.evaluate(&x);
+                (x, y)
+            })
+            .collect::<Vec<_>>();
+        let recovered = interpolate(&points).unwrap();
+        assert_eq!(recovered, source);
+        for (x, y) in points {
+            assert_eq!(recovered.evaluate(&x), y);
+        }
+
+        let common = Polynomial::from_integers(&[2, -3, 1]);
+        let left = common.mul(&Polynomial::from_integers(&[-2, 1]));
+        let right = common.mul(&Polynomial::from_integers(&[4, 1]));
+        let gcd = polynomial_gcd(left, right).unwrap();
+        assert_eq!(gcd, common);
+        assert_eq!(gcd.leading(), Some(&Rational::from_i64(1)));
+    }
 }

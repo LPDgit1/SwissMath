@@ -6,8 +6,8 @@ desktop, command-line, and WebAssembly interfaces.
 
 By Luca Pezzullo, 2026
 
-Current source status: SwissMath Core v0.6, Web v0.2, and Research Workflow
-v0.1. The public deployment may lag the validated local source release.
+Current source status: SwissMath Core v0.7, Web v0.3, and Research Workflow
+v0.2. The public deployment may lag the validated local source release.
 
 ## Try it online
 
@@ -30,6 +30,11 @@ backend or telemetry is required.
 - Core v0.6 research primitives: extended GCD, p-adic valuation, Möbius,
   radical, squarefree test, divisor count/sum/enumeration, prime navigation,
   and exact modular rational reconstruction;
+- exact dense matrix arithmetic over prime fields Fp: addition, subtraction,
+  multiplication, matrix-vector products, determinant, rank, RREF, solve,
+  inverse, and kernel;
+- exact dense polynomials over Fp: arithmetic, division with remainder, monic
+  GCD, extended GCD, derivative, evaluation, and modular exponentiation;
 - Jacobi and Legendre symbols;
 - modular roots in the currently supported domains.
 
@@ -61,7 +66,14 @@ Primality labels are deliberately precise:
 
 All surfaces reuse the same `swissmath-core` implementation.
 
-### Core v0.6 reconstruction semantics
+### Core v0.7 finite-field domain
+
+Finite-field operations accept only a prime `p` in the exact `u64` domain.
+Inputs are reduced to canonical residues `0..p-1`; composite moduli are rejected.
+This release deliberately does not implement extension fields, polynomial
+factorization, discrete logarithms, or a generic algebra framework.
+
+### Rational reconstruction semantics
 
 `rational_reconstruct(r, m)` uses the exact integer bound
 `floor(sqrt((m - 1) / 2))` for numerator magnitude and denominator. This
@@ -149,6 +161,8 @@ loading from `file://`, leaving the tool menu and sidebar inactive.
 cargo build -p swissmath-cli --release
 target\release\swissmath.exe prime 1000000007
 target\release\swissmath.exe factor 360 --json
+target\release\swissmath.exe matrix det 5 "1,2;3,4" --json
+target\release\swissmath.exe polynomial derivative 5 "0,0,0,0,0,1" --json
 ```
 
 Streaming PowerShell example:
@@ -161,6 +175,13 @@ Equivalent Unix example:
 
 ```sh
 cat numbers.txt | ./target/release/swissmath prime --jsonl
+```
+
+Whole matrices can also be supplied through stdin or `--input`:
+
+```powershell
+Get-Content matrix.txt | target\release\swissmath.exe matrix rank 5 --json
+target\release\swissmath.exe matrix rank 5 --input matrix.txt --json
 ```
 
 CSV preserves existing columns and appends stable SwissMath result columns:
@@ -220,7 +241,7 @@ optional `-BundleName` parameter can produce, for example:
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File scripts/package-source.ps1
-powershell -ExecutionPolicy Bypass -File scripts/package-source.ps1 -BundleName SwissMath-Web-v0.1-source
+powershell -ExecutionPolicy Bypass -File scripts/package-source.ps1 -BundleName SwissMath-v0.7-source
 ```
 
 Archives exclude build output, local work folders, binaries, `.git`, and other

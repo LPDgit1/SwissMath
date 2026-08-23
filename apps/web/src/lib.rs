@@ -2,10 +2,11 @@ use num_bigint::BigInt;
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use serde_json::{Value, json};
 use swissmath_core::{
-    Congruence, DecimalIntegerAnalysis, DecimalIntegerAnalysisError, LinearCongruence,
-    LinearSolution, LinearSystemSolution, ModCtx, ModularFilter, ModularFilterBuild, ModularSieve,
-    Modulus, MultiplicativeOrderResult, Polynomial, PrimalityAssessment, QuadraticError, Rational,
-    RationalMatrix, ResidueError, ResidueSet, Valuation, analyze_integer_decimal,
+    Congruence, DecimalIntegerAnalysis, DecimalIntegerAnalysisError, FpLinearSystemSolution,
+    FpMatrix, FpPolynomial, LinearCongruence, LinearSolution, LinearSystemSolution, ModCtx,
+    ModularFilter, ModularFilterBuild, ModularSieve, Modulus, MultiplicativeOrderResult,
+    Polynomial, PrimalityAssessment, PrimeField, QuadraticError, Rational, RationalMatrix,
+    ResidueError, ResidueSet, Valuation, analyze_integer_decimal,
     continued_fraction, convergents, crt_fold, crt_pair, determinant_bareiss, extended_gcd, factor,
     find_recurrence, finite_differences, format_in_base, guess_sequence, hermite_normal_form,
     integer_nth_root, interpolate, is_prime, jacobi_symbol, lcm, modular_square_roots,
@@ -985,6 +986,8 @@ fn rational_rows_json(rows: &[Vec<Rational>]) -> Value {
 
 fn run_tool(tool: &str, input: &Value) -> Result<Value, String> {
     match tool {
+        tool if tool.starts_with("fp-matrix-") => run_fp_matrix_tool(tool, input),
+        tool if tool.starts_with("fp-poly-") => run_fp_polynomial_tool(tool, input),
         "gcd" => Ok(
             json!({ "result": swissmath_core::gcd(field_u64(input, "a")?, field_u64(input, "b")?).to_string() }),
         ),
@@ -1287,6 +1290,166 @@ fn run_tool(tool: &str, input: &Value) -> Result<Value, String> {
     }
 }
 
+fn input_prime_field(input: &Value) -> Result<PrimeField, String> {
+    PrimeField::new(field_u64(input, "prime")?)
+        .map_err(|_| "The modulus must be a prime in the u64 domain.".to_owned())
+}
+
+fn input_fp_matrix(field_context: PrimeField, input: &Value, name: &str) -> Result<FpMatrix, String> {
+    let rows = parse_integer_matrix(field(input, name)?)?
+        .into_iter()
+        .map(|row| row.into_iter().map(i128::from).collect::<Vec<_>>())
+        .collect::<Vec<_>>();
+    FpMatrix::new(field_context, &rows).map_err(|error| format!("Invalid matrix: {error:?}."))
+}
+
+fn input_fp_polynomial(
+    field_context: PrimeField,
+    input: &Value,
+    name: &str,
+) -> Result<FpPolynomial, String> {
+    let coefficients = parse_integer_list(field(input, name)?)?
+        .into_iter()
+        .map(i128::from)
+        .collect::<Vec<_>>();
+    Ok(FpPolynomial::new(field_context, &coefficients))
+}
+
+fn fp_polynomial_text(polynomial: &FpPolynomial) -> String {
+    if polynomial.is_zero() {
+        return "0".to_owned();
+    }
+    polynomial
+        .coefficients()
+        .iter()
+        .enumerate()
+        .filter(|(_, coefficient)| **coefficient != 0)
+        .map(|(degree, coefficient)| match degree {
+            0 => coefficient.to_string(),
+            1 => format!("{coefficient}x"),
+            _ => format!("{coefficient}x^{degree}"),
+        })
+        .collect::<Vec<_>>()
+        .join(" + ")
+}
+
+fn run_fp_matrix_tool(tool: &str, input: &Value) -> Result<Value, String> {
+    let field_context = input_prime_field(input)?;
+    let left = input_fp_matrix(field_context, input, "matrix")?;
+    let matrix_json = |matrix: &FpMatrix| json!(matrix.to_rows());
+    match tool {
+        "fp-matrix-add" | "fp-matrix-sub" | "fp-matrix-mul" => {
+            let right = input_fp_matrix(field_context, input, "other")?;
+            let result = match tool {
+                "fp-matrix-add" => left.add(field_context, &right),
+                "fp-matrix-sub" => left.sub(field_context, &right),
+                _ => left.mul(field_context, &right),
+            }
+            .map_err(|error| format!("Matrix operation failed: {error:?}."))?;
+            Ok(json!({ "result": matrix_json(&result), "matrix": matrix_json(&result), "prime": field_context.modulus().to_string(), "exact": true }))
+        }
+        "fp-matrix-vector" => {
+            let vector = parse_integer_list(field(input, "vector")?)?
+                .into_iter()
+                .map(i128::from)
+                .collect::<Vec<_>>();
+            let result = left
+                .mul_vector(field_context, &vector)
+                .map_err(|error| format!("Matrix-vector product failed: {error:?}."))?;
+            Ok(json!({ "result": result, "vector": result, "prime": field_context.modulus().to_string(), "exact": true }))
+        }
+        "fp-matrix-det" => {
+            let result = left
+                .determinant(field_context)
+                .map_err(|error| format!("Determinant failed: {error:?}."))?;
+            Ok(json!({ "result": result.to_string(), "determinant": result.to_string(), "prime": field_context.modulus().to_string(), "exact": true }))
+        }
+        "fp-matrix-rank" => Ok(json!({ "result": left.rank(field_context), "prime": field_context.modulus().to_string(), "exact": true })),
+        "fp-matrix-rref" => {
+            let result = left.rref(field_context);
+            Ok(json!({ "result": matrix_json(&result.matrix), "matrix": matrix_json(&result.matrix), "pivots": result.pivot_columns, "prime": field_context.modulus().to_string(), "exact": true }))
+        }
+        "fp-matrix-inverse" => {
+            let result = left
+                .inverse(field_context)
+                .map_err(|error| format!("Matrix is not invertible: {error:?}."))?;
+            Ok(json!({ "result": matrix_json(&result), "matrix": matrix_json(&result), "prime": field_context.modulus().to_string(), "exact": true }))
+        }
+        "fp-matrix-kernel" => {
+            let result = left.kernel(field_context);
+            Ok(json!({ "result": result, "basis": result, "dimension": result.len(), "prime": field_context.modulus().to_string(), "exact": true }))
+        }
+        "fp-matrix-solve" => {
+            let rhs = parse_integer_list(field(input, "rhs")?)?
+                .into_iter()
+                .map(i128::from)
+                .collect::<Vec<_>>();
+            match left
+                .solve(field_context, &rhs)
+                .map_err(|error| format!("System solve failed: {error:?}."))?
+            {
+                FpLinearSystemSolution::None => Ok(json!({ "result": "No solution", "kind": "none", "prime": field_context.modulus().to_string(), "exact": true })),
+                FpLinearSystemSolution::Unique(solution) => Ok(json!({ "result": solution, "kind": "unique", "solution": solution, "prime": field_context.modulus().to_string(), "exact": true })),
+                FpLinearSystemSolution::Infinite { particular, kernel_basis } => Ok(json!({ "result": particular, "kind": "infinite", "particular": particular, "kernel_basis": kernel_basis, "prime": field_context.modulus().to_string(), "exact": true })),
+            }
+        }
+        _ => Err(format!("Unrecognized finite-field matrix tool: {tool}.")),
+    }
+}
+
+fn run_fp_polynomial_tool(tool: &str, input: &Value) -> Result<Value, String> {
+    let field_context = input_prime_field(input)?;
+    let left = input_fp_polynomial(field_context, input, "polynomial")?;
+    let coefficients = |polynomial: &FpPolynomial| json!(polynomial.coefficients());
+    match tool {
+        "fp-poly-add" | "fp-poly-sub" | "fp-poly-mul" | "fp-poly-gcd" => {
+            let right = input_fp_polynomial(field_context, input, "other")?;
+            let result = match tool {
+                "fp-poly-add" => left.add(field_context, &right),
+                "fp-poly-sub" => left.sub(field_context, &right),
+                "fp-poly-mul" => left.mul(field_context, &right),
+                _ => left
+                    .gcd(field_context, &right)
+                    .map_err(|error| format!("Polynomial GCD failed: {error:?}."))?,
+            };
+            Ok(json!({ "result": fp_polynomial_text(&result), "coefficients": coefficients(&result), "prime": field_context.modulus().to_string(), "exact": true }))
+        }
+        "fp-poly-divrem" => {
+            let right = input_fp_polynomial(field_context, input, "other")?;
+            let (quotient, remainder) = left
+                .div_rem(field_context, &right)
+                .map_err(|error| format!("Polynomial division failed: {error:?}."))?;
+            Ok(json!({ "result": format!("q = {}; r = {}", fp_polynomial_text(&quotient), fp_polynomial_text(&remainder)), "quotient": coefficients(&quotient), "remainder": coefficients(&remainder), "prime": field_context.modulus().to_string(), "exact": true }))
+        }
+        "fp-poly-xgcd" => {
+            let right = input_fp_polynomial(field_context, input, "other")?;
+            let result = left
+                .extended_gcd(field_context, &right)
+                .map_err(|error| format!("Extended polynomial GCD failed: {error:?}."))?;
+            Ok(json!({ "result": fp_polynomial_text(&result.gcd), "gcd": coefficients(&result.gcd), "left_coefficient": coefficients(&result.left_coefficient), "right_coefficient": coefficients(&result.right_coefficient), "prime": field_context.modulus().to_string(), "exact": true }))
+        }
+        "fp-poly-derivative" => {
+            let result = left.derivative(field_context);
+            Ok(json!({ "result": fp_polynomial_text(&result), "coefficients": coefficients(&result), "prime": field_context.modulus().to_string(), "exact": true }))
+        }
+        "fp-poly-evaluate" => {
+            let value = field(input, "x")?
+                .parse::<i128>()
+                .map_err(|_| "Invalid evaluation point.".to_owned())?;
+            let result = left.evaluate(field_context, value);
+            Ok(json!({ "result": result.to_string(), "value": result.to_string(), "prime": field_context.modulus().to_string(), "exact": true }))
+        }
+        "fp-poly-powmod" => {
+            let modulus = input_fp_polynomial(field_context, input, "modulus")?;
+            let result = left
+                .pow_mod(field_context, field_u64(input, "exponent")?, &modulus)
+                .map_err(|error| format!("Polynomial modular power failed: {error:?}."))?;
+            Ok(json!({ "result": fp_polynomial_text(&result), "coefficients": coefficients(&result), "prime": field_context.modulus().to_string(), "exact": true }))
+        }
+        _ => Err(format!("Unrecognized finite-field polynomial tool: {tool}.")),
+    }
+}
+
 fn run_matrix_tool(tool: &str, input: &Value) -> Result<Value, String> {
     let rows = parse_integer_matrix(field(input, "matrix")?)?;
     let rational = rational_matrix(&rows)?;
@@ -1441,7 +1604,7 @@ mod tests {
     use serde_json::json;
 
     #[test]
-    fn workflow_primitives_use_core_v06_results() {
+    fn workflow_primitives_use_core_results() {
         assert_eq!(
             run_tool("previousprime", &json!({ "n": "100" })).unwrap()["result"],
             "97"
@@ -1454,6 +1617,30 @@ mod tests {
             run_tool("valuation", &json!({ "n": "81", "p": "3" })).unwrap()["result"],
             4
         );
+    }
+
+    #[test]
+    fn finite_field_tools_cover_matrix_and_characteristic_p_smoke_cases() {
+        let determinant = run_tool(
+            "fp-matrix-det",
+            &json!({ "prime": "5", "matrix": "1,2\n3,4" }),
+        )
+        .unwrap();
+        assert_eq!(determinant["determinant"], "3");
+
+        let inverse = run_tool(
+            "fp-matrix-inverse",
+            &json!({ "prime": "5", "matrix": "1,2\n3,4" }),
+        )
+        .unwrap();
+        assert_eq!(inverse["matrix"], json!([[3, 1], [4, 2]]));
+
+        let derivative = run_tool(
+            "fp-poly-derivative",
+            &json!({ "prime": "5", "polynomial": "0,0,0,0,0,1" }),
+        )
+        .unwrap();
+        assert_eq!(derivative["coefficients"], json!([]));
     }
 
     #[test]

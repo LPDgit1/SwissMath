@@ -5,6 +5,9 @@ mod bitops;
 mod congruence;
 mod crt;
 mod discovery;
+mod finite_field;
+mod finite_field_matrix;
+mod finite_field_polynomial;
 mod fractions;
 mod linear_algebra;
 mod modular;
@@ -29,6 +32,9 @@ pub use discovery::{
     DiscoveryError, GuessCandidate, IntegerRelation, RecurrenceCandidate, berlekamp_massey,
     find_recurrence, guess_sequence, pslq,
 };
+pub use finite_field::{FiniteFieldError, PrimeField};
+pub use finite_field_matrix::{FpLinearSystemSolution, FpMatrix, FpRrefResult};
+pub use finite_field_polynomial::{FpExtendedGcd, FpPolynomial};
 pub use fractions::{
     FractionError, Rational, RationalReconstruction, Rationalization, continued_fraction,
     convergents, parse_decimal, rational_reconstruct, rational_reconstruct_bounded,

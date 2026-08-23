@@ -79,6 +79,30 @@ const catalog = {
       t('snf', 'Smith invariants', 'Computes the non-zero diagonal factors of the Smith normal form.', 'Each invariant divides the next', [f('matrix', 'Matrix', '2, 4\n6, 8', '', 'textarea')]),
     ],
   },
+  'finite-fields': {
+    title: 'Finite fields',
+    tools: [
+      t('fp-matrix-add', 'Matrix addition over Fp', 'Adds two matrices entry by entry over the selected prime field.', 'Paste one row per line; entries are reduced modulo p.', [f('prime', 'Prime p', '5'), f('matrix', 'Matrix A', '1, 2\n3, 4', '', 'textarea'), f('other', 'Matrix B', '4, 3\n2, 1', '', 'textarea')]),
+      t('fp-matrix-sub', 'Matrix subtraction over Fp', 'Subtracts two matrices entry by entry over the selected prime field.', 'Both matrices must have the same dimensions.', [f('prime', 'Prime p', '5'), f('matrix', 'Matrix A', '1, 2\n3, 4', '', 'textarea'), f('other', 'Matrix B', '4, 3\n2, 1', '', 'textarea')]),
+      t('fp-matrix-mul', 'Matrix multiplication over Fp', 'Multiplies compatible dense matrices over Fp.', 'A columns must equal B rows.', [f('prime', 'Prime p', '5'), f('matrix', 'Matrix A', '1, 2\n3, 4', '', 'textarea'), f('other', 'Matrix B', '4, 3\n2, 1', '', 'textarea')]),
+      t('fp-matrix-vector', 'Matrix-vector product over Fp', 'Multiplies a dense matrix by a column vector.', 'Vector length must equal the number of matrix columns.', [f('prime', 'Prime p', '5'), f('matrix', 'Matrix A', '1, 2\n3, 4', '', 'textarea'), f('vector', 'Vector', '1, 3')]),
+      t('fp-matrix-det', 'Determinant over Fp', 'Computes the exact determinant of a square matrix over Fp.', 'For [[1,2],[3,4]] over F5 the determinant is 3.', [f('prime', 'Prime p', '5'), f('matrix', 'Matrix', '1, 2\n3, 4', '', 'textarea')]),
+      t('fp-matrix-rank', 'Rank over Fp', 'Computes matrix rank using finite-field elimination.', 'Rectangular matrices are supported.', [f('prime', 'Prime p', '5'), f('matrix', 'Matrix', '1, 2, 3\n2, 4, 1', '', 'textarea')]),
+      t('fp-matrix-rref', 'RREF over Fp', 'Computes the reduced row-echelon form and pivot columns.', 'All output entries are canonical residues.', [f('prime', 'Prime p', '5'), f('matrix', 'Matrix', '1, 2, 3\n2, 4, 1', '', 'textarea')]),
+      t('fp-matrix-solve', 'Linear system over Fp', 'Classifies a system as unique, inconsistent, or affine.', 'Enter A and the right-hand-side vector separately.', [f('prime', 'Prime p', '5'), f('matrix', 'Matrix A', '1, 2\n3, 4', '', 'textarea'), f('rhs', 'Vector b', '1, 0')]),
+      t('fp-matrix-inverse', 'Matrix inverse over Fp', 'Inverts a nonsingular square matrix and rejects singular input.', 'The result can be multiplied by A to recover the identity.', [f('prime', 'Prime p', '5'), f('matrix', 'Matrix', '1, 2\n3, 4', '', 'textarea')]),
+      t('fp-matrix-kernel', 'Kernel over Fp', 'Returns a basis of the nullspace over the prime field.', 'Basis vectors satisfy A·v=0.', [f('prime', 'Prime p', '5'), f('matrix', 'Matrix', '1, 2, 3\n2, 4, 1', '', 'textarea')]),
+      t('fp-poly-add', 'Polynomial addition over Fp', 'Adds canonical coefficient vectors over Fp.', 'Coefficients are in ascending order: c0,c1,…', [f('prime', 'Prime p', '5'), f('polynomial', 'Polynomial A', '1, 2, 0, 1'), f('other', 'Polynomial B', '4, 1')]),
+      t('fp-poly-sub', 'Polynomial subtraction over Fp', 'Subtracts canonical coefficient vectors over Fp.', 'Trailing zero coefficients are removed.', [f('prime', 'Prime p', '5'), f('polynomial', 'Polynomial A', '1, 2, 0, 1'), f('other', 'Polynomial B', '4, 1')]),
+      t('fp-poly-mul', 'Polynomial multiplication over Fp', 'Multiplies dense polynomials over Fp.', 'Coefficients are reduced modulo p.', [f('prime', 'Prime p', '5'), f('polynomial', 'Polynomial A', '1, 2, 0, 1'), f('other', 'Polynomial B', '4, 1')]),
+      t('fp-poly-divrem', 'Polynomial division over Fp', 'Returns quotient and canonical remainder.', 'The remainder degree is smaller than the divisor degree.', [f('prime', 'Prime p', '5'), f('polynomial', 'Dividend', '1, 0, 0, 1'), f('other', 'Divisor', '4, 1')]),
+      t('fp-poly-gcd', 'Polynomial GCD over Fp', 'Computes the monic greatest common divisor.', 'The zero polynomial is represented by an empty or all-zero list.', [f('prime', 'Prime p', '5'), f('polynomial', 'Polynomial A', '1, 0, 4, 1'), f('other', 'Polynomial B', '4, 0, 1')]),
+      t('fp-poly-xgcd', 'Extended polynomial GCD over Fp', 'Returns a monic GCD and Bézout coefficients.', 'sA+tB=gcd exactly over Fp.', [f('prime', 'Prime p', '5'), f('polynomial', 'Polynomial A', '1, 0, 4, 1'), f('other', 'Polynomial B', '4, 0, 1')]),
+      t('fp-poly-derivative', 'Formal derivative over Fp', 'Computes the formal derivative with characteristic-p cancellation.', 'Over F5 the derivative of x^5 is zero.', [f('prime', 'Prime p', '5'), f('polynomial', 'Polynomial', '0, 0, 0, 0, 0, 1')]),
+      t('fp-poly-evaluate', 'Polynomial evaluation over Fp', 'Evaluates with Horner’s method over the selected field.', 'Coefficients and x are reduced modulo p.', [f('prime', 'Prime p', '5'), f('polynomial', 'Polynomial', '1, 2, 0, 1'), f('x', 'Value x', '2')]),
+      t('fp-poly-powmod', 'Polynomial modular power over Fp', 'Computes A^n modulo a nonzero polynomial using binary exponentiation.', 'The output degree stays below the modulus degree.', [f('prime', 'Prime p', '5'), f('polynomial', 'Base polynomial', '1, 1'), f('exponent', 'Exponent n', '20'), f('modulus', 'Modulus polynomial', '1, 0, 1')]),
+    ],
+  },
   discovery: {
     title: 'Discovery',
     tools: [
@@ -102,6 +126,25 @@ const cliCommands = {
   'divisor-count': ['divisor-count', 'n'], 'divisor-sum': ['divisor-sum', 'n'],
   sqrtmod: ['sqrtmod', 'a', 'modulus'], 'integer-analysis': ['analyze', 'n'],
   'linear-congruence': ['congruence', 'a', 'b', 'modulus'],
+  'fp-matrix-add': ['matrix', '=add', 'prime', 'matrix', 'other'],
+  'fp-matrix-sub': ['matrix', '=sub', 'prime', 'matrix', 'other'],
+  'fp-matrix-mul': ['matrix', '=mul', 'prime', 'matrix', 'other'],
+  'fp-matrix-vector': ['matrix', '=matvec', 'prime', 'matrix', 'vector'],
+  'fp-matrix-det': ['matrix', '=det', 'prime', 'matrix'],
+  'fp-matrix-rank': ['matrix', '=rank', 'prime', 'matrix'],
+  'fp-matrix-rref': ['matrix', '=rref', 'prime', 'matrix'],
+  'fp-matrix-solve': ['matrix', '=solve', 'prime', 'matrix', 'rhs'],
+  'fp-matrix-inverse': ['matrix', '=inverse', 'prime', 'matrix'],
+  'fp-matrix-kernel': ['matrix', '=kernel', 'prime', 'matrix'],
+  'fp-poly-add': ['polynomial', '=add', 'prime', 'polynomial', 'other'],
+  'fp-poly-sub': ['polynomial', '=sub', 'prime', 'polynomial', 'other'],
+  'fp-poly-mul': ['polynomial', '=mul', 'prime', 'polynomial', 'other'],
+  'fp-poly-divrem': ['polynomial', '=divrem', 'prime', 'polynomial', 'other'],
+  'fp-poly-gcd': ['polynomial', '=gcd', 'prime', 'polynomial', 'other'],
+  'fp-poly-xgcd': ['polynomial', '=xgcd', 'prime', 'polynomial', 'other'],
+  'fp-poly-derivative': ['polynomial', '=derivative', 'prime', 'polynomial'],
+  'fp-poly-evaluate': ['polynomial', '=evaluate', 'prime', 'polynomial', 'x'],
+  'fp-poly-powmod': ['polynomial', '=powmod', 'prime', 'polynomial', 'exponent', 'modulus'],
 };
 
 const wasmLoading = document.querySelector('#wasm-loading');
@@ -269,6 +312,14 @@ function renderBatch(rows) {
 
 function matrixViewsForResult(result) {
   const column = (values) => Array.isArray(values) ? values.map((value) => [value]) : null;
+  if (currentTool.id.startsWith('fp-matrix-') && Array.isArray(result.matrix)) return [{ label: 'Matrix over Fp', rows: result.matrix }];
+  if (currentTool.id === 'fp-matrix-vector' && Array.isArray(result.vector)) return [{ label: 'Result vector', rows: column(result.vector) }];
+  if (currentTool.id === 'fp-matrix-kernel' && Array.isArray(result.basis)) return [{ label: 'Kernel basis', rows: result.basis }];
+  if (currentTool.id === 'fp-matrix-solve' && result.kind === 'unique' && Array.isArray(result.solution)) return [{ label: 'Solution vector', rows: column(result.solution) }];
+  if (currentTool.id === 'fp-matrix-solve' && result.kind === 'infinite') return [
+    ...(Array.isArray(result.particular) ? [{ label: 'Particular solution', rows: column(result.particular) }] : []),
+    ...(Array.isArray(result.kernel_basis) ? [{ label: 'Kernel basis', rows: result.kernel_basis }] : []),
+  ];
   if (currentTool.id === 'rref' && Array.isArray(result.matrix)) return [{ label: 'Reduced row-echelon form', rows: result.matrix }];
   if (currentTool.id === 'nullspace' && Array.isArray(result.basis)) return [{ label: 'Nullspace basis', rows: result.basis }];
   if (currentTool.id === 'hnf' && Array.isArray(result.matrix)) return [{ label: 'Hermite normal form', rows: result.matrix }];
@@ -389,7 +440,7 @@ categoryButtons.forEach((button) => button.addEventListener('click', () => selec
 
 function exportPayload() {
   return {
-    application: 'SwissMath Web', web_version: '0.2', core_version: '0.6',
+    application: 'SwissMath Web', web_version: '0.3', core_version: '0.7',
     operation: currentResult.tool, elapsed_ms: currentResult.elapsed, records: currentResult.records,
   };
 }
@@ -425,7 +476,9 @@ function cliCommand() {
   const mapping = cliCommands[currentTool.id];
   if (!mapping || currentResult.records.length !== 1) return null;
   const [, ...fields] = mapping;
-  return ['swissmath', mapping[0], ...fields.map((field) => shellValue(currentResult.input[field]))].join(' ');
+  return ['swissmath', mapping[0], ...fields.map((field) => (
+    field.startsWith('=') ? field.slice(1) : shellValue(currentResult.input[field])
+  ))].join(' ');
 }
 
 function shareHash() {
@@ -484,7 +537,7 @@ document.querySelector('#share-result').addEventListener('click', async () => {
 
 document.querySelector('#save-result').addEventListener('click', () => {
   if (!currentResult) return;
-  const text = `SwissMath Web v0.2 · Core v0.6\n${currentResult.title}\nTime: ${formatElapsed(currentResult.elapsed)}\n\n${plainResult()}\n`;
+  const text = `SwissMath Web v0.3 · Core v0.7\n${currentResult.title}\nTime: ${formatElapsed(currentResult.elapsed)}\n\n${plainResult()}\n`;
   download(`swissmath-${currentTool.id}.txt`, text, 'text/plain;charset=utf-8');
   showToast('Result saved.');
 });

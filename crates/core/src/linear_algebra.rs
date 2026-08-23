@@ -406,6 +406,61 @@ fn div_floor(numerator: &BigInt, denominator: &BigInt) -> BigInt {
 mod tests {
     use super::*;
 
+    fn dot(row: &[Rational], vector: &[Rational]) -> Rational {
+        row.iter()
+            .zip(vector)
+            .fold(Rational::from_i64(0), |sum, (left, right)| {
+                sum.add(&left.mul(right))
+            })
+    }
+
+    fn determinant_leibniz(matrix: &[Vec<BigInt>]) -> BigInt {
+        fn visit(
+            matrix: &[Vec<BigInt>],
+            row: usize,
+            used: &mut [bool],
+            product: BigInt,
+            inversions: usize,
+            total: &mut BigInt,
+        ) {
+            if row == matrix.len() {
+                if inversions % 2 == 0 {
+                    *total += product;
+                } else {
+                    *total -= product;
+                }
+                return;
+            }
+            for column in 0..matrix.len() {
+                if used[column] {
+                    continue;
+                }
+                let added_inversions = used[column + 1..].iter().filter(|used| **used).count();
+                used[column] = true;
+                visit(
+                    matrix,
+                    row + 1,
+                    used,
+                    product.clone() * &matrix[row][column],
+                    inversions + added_inversions,
+                    total,
+                );
+                used[column] = false;
+            }
+        }
+
+        let mut total = BigInt::from(0);
+        visit(
+            matrix,
+            0,
+            &mut vec![false; matrix.len()],
+            BigInt::from(1),
+            0,
+            &mut total,
+        );
+        total
+    }
+
     #[test]
     fn exact_elimination_classifies_systems_and_nullspace() {
         let matrix = RationalMatrix::from_integers(&[vec![1, 2, 3], vec![2, 4, 6]]).unwrap();
@@ -441,5 +496,111 @@ mod tests {
             bigint_abs(&determinant_bareiss(&hermite).unwrap()),
             BigInt::from(8)
         );
+    }
+
+    #[test]
+    fn rref_pivots_and_solution_residuals_are_canonical() {
+        let matrix =
+            RationalMatrix::from_integers(&[vec![0, 2, 4, 2], vec![1, 1, 1, 3], vec![2, 4, 6, 8]])
+                .unwrap();
+        let reduced = rref(&matrix);
+        for (pivot_row, &pivot_column) in reduced.pivot_columns.iter().enumerate() {
+            assert_eq!(
+                reduced.matrix.data()[pivot_row][pivot_column],
+                Rational::from_i64(1)
+            );
+            assert!(
+                reduced
+                    .matrix
+                    .data()
+                    .iter()
+                    .enumerate()
+                    .all(|(row, values)| row == pivot_row || values[pivot_column].is_zero())
+            );
+        }
+
+        let rhs = [
+            Rational::from_i64(6),
+            Rational::from_i64(6),
+            Rational::from_i64(18),
+        ];
+        let solution = solve(&matrix, &rhs).unwrap();
+        let (particular, basis) = match solution {
+            LinearSystemSolution::Infinite {
+                particular,
+                nullspace_basis,
+            } => (particular, nullspace_basis),
+            other => panic!("expected an affine solution space, got {other:?}"),
+        };
+        for (row, expected) in matrix.data().iter().zip(&rhs) {
+            assert_eq!(&dot(row, &particular), expected);
+        }
+        for vector in basis {
+            assert!(matrix.data().iter().all(|row| dot(row, &vector).is_zero()));
+        }
+    }
+
+    #[test]
+    fn bareiss_matches_an_independent_leibniz_oracle() {
+        let cases = [
+            vec![vec![7.into()]],
+            vec![vec![0.into(), 2.into()], vec![3.into(), 4.into()]],
+            vec![
+                vec![2.into(), (-1).into(), 3.into()],
+                vec![4.into(), 0.into(), 5.into()],
+                vec![7.into(), 2.into(), 1.into()],
+            ],
+            vec![
+                vec![1.into(), 2.into(), 3.into(), 4.into()],
+                vec![2.into(), 4.into(), 7.into(), 8.into()],
+                vec![0.into(), 1.into(), 0.into(), 1.into()],
+                vec![3.into(), 5.into(), 9.into(), 2.into()],
+            ],
+        ];
+        for matrix in cases {
+            assert_eq!(
+                determinant_bareiss(&matrix).unwrap(),
+                determinant_leibniz(&matrix)
+            );
+        }
+    }
+
+    #[test]
+    fn hermite_and_smith_outputs_satisfy_structural_invariants() {
+        let matrix = vec![
+            vec![4.into(), 6.into(), 2.into()],
+            vec![2.into(), 8.into(), 4.into()],
+            vec![6.into(), 10.into(), 8.into()],
+        ];
+        let hermite = hermite_normal_form(&matrix).unwrap();
+        let mut previous_pivot = None;
+        for (row_index, row) in hermite.iter().enumerate() {
+            let pivot = row.iter().position(|value| value != &BigInt::from(0));
+            if let Some(column) = pivot {
+                assert!(previous_pivot.is_none_or(|previous| column > previous));
+                assert!(row[column] > BigInt::from(0));
+                for earlier in &hermite[..row_index] {
+                    assert!(earlier[column] >= BigInt::from(0));
+                    assert!(earlier[column] < row[column]);
+                }
+                previous_pivot = Some(column);
+            }
+        }
+        assert_eq!(
+            bigint_abs(&determinant_bareiss(&hermite).unwrap()),
+            bigint_abs(&determinant_bareiss(&matrix).unwrap())
+        );
+
+        let invariants = smith_normal_form_invariants(&matrix).unwrap();
+        assert!(invariants.iter().all(|value| value > &BigInt::from(0)));
+        assert!(
+            invariants
+                .windows(2)
+                .all(|pair| &pair[1] % &pair[0] == BigInt::from(0))
+        );
+        let product = invariants
+            .iter()
+            .fold(BigInt::from(1), |value, item| value * item);
+        assert_eq!(product, bigint_abs(&determinant_bareiss(&matrix).unwrap()));
     }
 }

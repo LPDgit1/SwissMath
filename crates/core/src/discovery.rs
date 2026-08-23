@@ -457,4 +457,47 @@ mod tests {
         assert!(relation.residual < 1e-12);
         assert!(relation.coefficients.iter().any(|value| *value != 0));
     }
+
+    #[test]
+    fn berlekamp_massey_recovers_generated_recurrences_modulo_a_prime() {
+        let modulus = 101_i64;
+        let mut sequence = vec![2_i64, 7, 11];
+        while sequence.len() < 24 {
+            let length = sequence.len();
+            let next = (3 * sequence[length - 1] - 2 * sequence[length - 2]
+                + 5 * sequence[length - 3])
+                .rem_euclid(modulus);
+            sequence.push(next);
+        }
+        let coefficients = berlekamp_massey(&sequence, modulus as u64).unwrap();
+        assert_eq!(coefficients, vec![3, -2, 5]);
+        for index in coefficients.len()..sequence.len() {
+            let predicted = coefficients
+                .iter()
+                .enumerate()
+                .map(|(offset, coefficient)| coefficient * sequence[index - offset - 1])
+                .sum::<i64>()
+                .rem_euclid(modulus);
+            assert_eq!(predicted, sequence[index]);
+        }
+    }
+
+    #[test]
+    fn pslq_relation_coefficients_independently_reproduce_the_residual() {
+        let values = [
+            1.0,
+            std::f64::consts::SQRT_2,
+            2.0 * std::f64::consts::SQRT_2,
+        ];
+        let relation = pslq(&values, 1e-12, 200, 10_000).unwrap();
+        let residual = relation
+            .coefficients
+            .iter()
+            .zip(values)
+            .map(|(&coefficient, value)| coefficient as f64 * value)
+            .sum::<f64>()
+            .abs();
+        assert!(residual < 1e-12);
+        assert!((relation.residual - residual).abs() < f64::EPSILON);
+    }
 }

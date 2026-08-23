@@ -5,13 +5,14 @@ use swissmath_core::{
     Congruence, DecimalIntegerAnalysis, DecimalIntegerAnalysisError, LinearCongruence,
     LinearSolution, LinearSystemSolution, ModCtx, ModularFilter, ModularFilterBuild, ModularSieve,
     Modulus, MultiplicativeOrderResult, Polynomial, PrimalityAssessment, QuadraticError, Rational,
-    RationalMatrix, ResidueError, ResidueSet, Valuation, analyze_integer_decimal, continued_fraction,
-    convergents, crt_fold, crt_pair, determinant_bareiss, extended_gcd, factor, find_recurrence,
-    finite_differences, format_in_base, guess_sequence, hermite_normal_form, integer_nth_root,
-    interpolate, is_prime, jacobi_symbol, lcm, modular_square_roots, multiplicative_order,
-    next_prime, nullspace, parse_decimal, parse_in_base, perfect_power, polynomial_gcd,
-    previous_prime, pslq, rank, rational_reconstruct_bounded, rationalize_decimal, rref,
-    smith_normal_form_invariants, solve, solve_linear_congruence, solve_linear_system, valuation,
+    RationalMatrix, ResidueError, ResidueSet, Valuation, analyze_integer_decimal,
+    continued_fraction, convergents, crt_fold, crt_pair, determinant_bareiss, extended_gcd, factor,
+    find_recurrence, finite_differences, format_in_base, guess_sequence, hermite_normal_form,
+    integer_nth_root, interpolate, is_prime, jacobi_symbol, lcm, modular_square_roots,
+    multiplicative_order, next_prime, nullspace, parse_decimal, parse_in_base, perfect_power,
+    polynomial_gcd, previous_prime, pslq, rank, rational_reconstruct_bounded, rationalize_decimal,
+    rref, smith_normal_form_invariants, solve, solve_linear_congruence, solve_linear_system,
+    valuation,
 };
 use wasm_bindgen::prelude::*;
 
@@ -151,31 +152,31 @@ pub struct ModularRootsResult {
 fn parse_u64(name: &str, value: &str) -> Result<u64, String> {
     let value = value.trim();
     if value.is_empty() {
-        return Err(format!("{name}: inserisci un valore."));
+        return Err(format!("{name}: enter a value."));
     }
     value
         .parse::<u64>()
-        .map_err(|_| format!("{name}: usa un intero non negativo compreso tra 0 e 2^64-1."))
+        .map_err(|_| format!("{name}: use a non-negative integer between 0 and 2^64-1."))
 }
 
 fn parse_modulus(value: &str) -> Result<Modulus, String> {
-    let value = parse_u64("Modulo", value)?;
-    Modulus::new(value).ok_or_else(|| "Il modulo deve essere maggiore di zero.".to_owned())
+    let value = parse_u64("Modulus", value)?;
+    Modulus::new(value).ok_or_else(|| "The modulus must be greater than zero.".to_owned())
 }
 
 fn number_theory_error_message(error: swissmath_core::NumberTheoryError) -> String {
     match error {
         swissmath_core::NumberTheoryError::ZeroUndefined => {
-            "La fattorizzazione prima di 0 non è definita.".to_owned()
+            "Prime factorization of 0 is undefined.".to_owned()
         }
         swissmath_core::NumberTheoryError::SearchFailed => {
-            "La ricerca limitata dei fattori non ha trovato uno split verificato.".to_owned()
+            "The bounded factor search did not find a verified split.".to_owned()
         }
         swissmath_core::NumberTheoryError::Overflow => {
-            "Il risultato esatto non è rappresentabile in u64.".to_owned()
+            "The exact result cannot be represented in u64.".to_owned()
         }
         swissmath_core::NumberTheoryError::NonPrimeBase => {
-            "La base della valutazione deve essere prima.".to_owned()
+            "The evaluation base must be prime.".to_owned()
         }
     }
 }
@@ -184,13 +185,13 @@ fn decimal_analysis_error_message(error: DecimalIntegerAnalysisError) -> String 
     match error {
         DecimalIntegerAnalysisError::Input(input) => match input {
             swissmath_core::PrimalityInputError::Empty => {
-                "Numero n: inserisci un intero decimale.".to_owned()
+                "Integer n: enter a decimal integer.".to_owned()
             }
             swissmath_core::PrimalityInputError::InvalidDecimal => {
-                "Numero n: usa solo cifre decimali.".to_owned()
+                "Integer n: use decimal digits only.".to_owned()
             }
             swissmath_core::PrimalityInputError::Negative => {
-                "Numero n: i valori negativi non sono supportati.".to_owned()
+                "Integer n: negative values are not supported.".to_owned()
             }
         },
         DecimalIntegerAnalysisError::NumberTheory(error) => number_theory_error_message(error),
@@ -199,18 +200,18 @@ fn decimal_analysis_error_message(error: DecimalIntegerAnalysisError) -> String 
 
 fn quadratic_error_message(error: QuadraticError) -> String {
     match error {
-        QuadraticError::ZeroModulus => "Il modulo deve essere maggiore di zero.".to_owned(),
+        QuadraticError::ZeroModulus => "The modulus must be greater than zero.".to_owned(),
         QuadraticError::JacobiRequiresOddModulus => {
-            "Il simbolo di Jacobi richiede un modulo positivo dispari.".to_owned()
+            "The Jacobi symbol requires a positive odd modulus.".to_owned()
         }
         QuadraticError::PrimeModulusRequired => {
-            "Questa operazione richiede un modulo primo dispari.".to_owned()
+            "This operation requires an odd prime modulus.".to_owned()
         }
         QuadraticError::NonCoprimeUnsupported => {
-            "Il caso in cui a e il modulo non sono coprimi non è ancora incluso nel solutore generale.".to_owned()
+            "The non-coprime case is not yet included in the general solver.".to_owned()
         }
         QuadraticError::Arithmetic => {
-            "Il calcolo quadratico non è rappresentabile nel dominio u64.".to_owned()
+            "The quadratic computation cannot be represented in the u64 domain.".to_owned()
         }
         QuadraticError::Factorization(error) => number_theory_error_message(error),
     }
@@ -218,9 +219,9 @@ fn quadratic_error_message(error: QuadraticError) -> String {
 
 fn residue_error_message(error: ResidueError) -> &'static str {
     match error {
-        ResidueError::OutOfRange => "contiene un residuo fuori dal modulo",
-        ResidueError::ModulusMismatch => "usa moduli incompatibili",
-        ResidueError::AllocationFailed => "richiede più memoria di quella disponibile",
+        ResidueError::OutOfRange => "contains a residue outside the modulus",
+        ResidueError::ModulusMismatch => "uses incompatible moduli",
+        ResidueError::AllocationFailed => "requires more memory than is available",
     }
 }
 
@@ -268,10 +269,10 @@ fn linear_result(equation: LinearCongruence) -> LinearResult {
     let (solution_kind, residue, solution_modulus) = linear_solution_parts(result.solution);
     let message = match result.solution {
         LinearSolution::None => {
-            "Nessuna soluzione: il massimo comune divisore non divide il termine noto.".to_owned()
+            "No solution: the greatest common divisor does not divide the known term.".to_owned()
         }
-        LinearSolution::All => "Ogni intero è soluzione.".to_owned(),
-        LinearSolution::Class(_) => "Soluzione ridotta a una classe di congruenza.".to_owned(),
+        LinearSolution::All => "Every integer is a solution.".to_owned(),
+        LinearSolution::Class(_) => "Solution reduced to a congruence class.".to_owned(),
     };
 
     LinearResult {
@@ -293,8 +294,8 @@ fn linear_result(equation: LinearCongruence) -> LinearResult {
 }
 
 fn parse_linear_row(index: usize, row: LinearRowInput) -> Result<LinearCongruence, String> {
-    let a = parse_u64(&format!("a nella riga {index}"), &row.a)?;
-    let b = parse_u64(&format!("b nella riga {index}"), &row.b)?;
+    let a = parse_u64(&format!("a in row {index}"), &row.a)?;
+    let b = parse_u64(&format!("b in row {index}"), &row.b)?;
     let modulus = parse_modulus(&row.modulus)?;
     Ok(LinearCongruence::new(a, b, modulus))
 }
@@ -320,14 +321,14 @@ fn solve_system(rows: Vec<LinearRowInput>) -> Result<SystemResult, String> {
         .map(linear_result)
         .collect::<Vec<_>>();
     let solution = solve_linear_system(equations).map_err(|_| {
-        "Il sistema è compatibile, ma il periodo combinato non è rappresentabile in u64.".to_owned()
+        "The system is compatible, but the combined period cannot be represented in u64.".to_owned()
     })?;
     let (solution_kind, residue, modulus) = linear_solution_parts(solution);
     let message = match solution {
-        LinearSolution::None => "Nessuna soluzione comune.".to_owned(),
-        LinearSolution::All => "Ogni intero è soluzione del sistema.".to_owned(),
+        LinearSolution::None => "No common solution.".to_owned(),
+        LinearSolution::All => "Every integer is a solution of the system.".to_owned(),
         LinearSolution::Class(_) => {
-            "Le classi sono compatibili e sono state combinate con CRT.".to_owned()
+            "The classes are compatible and were combined with CRT.".to_owned()
         }
     };
 
@@ -345,7 +346,7 @@ fn parse_sieve_filter(
     input: SieveFilterInput,
 ) -> Result<Option<ModularFilter>, String> {
     let modulus = parse_modulus(&input.modulus)?;
-    let label = format!("Filtro {index}");
+    let label = format!("Filter {index}");
     match input.kind.as_str() {
         "allowed" => ModularFilter::from_allowed(modulus, parse_residues(&label, input.residues)?)
             .map(Some)
@@ -358,10 +359,8 @@ fn parse_sieve_filter(
         "linear" => {
             let a = input
                 .a
-                .ok_or_else(|| format!("{label}: inserisci il coefficiente a."))?;
-            let b = input
-                .b
-                .ok_or_else(|| format!("{label}: inserisci il termine b."))?;
+                .ok_or_else(|| format!("{label}: enter coefficient a."))?;
+            let b = input.b.ok_or_else(|| format!("{label}: enter term b."))?;
             let equation = LinearCongruence::new(parse_u64("a", &a)?, parse_u64("b", &b)?, modulus);
             match ModularFilter::from_linear_congruence(equation) {
                 ModularFilterBuild::None => Ok(None),
@@ -372,7 +371,7 @@ fn parse_sieve_filter(
                 ModularFilterBuild::Filter(filter) => Ok(Some(filter)),
             }
         }
-        _ => Err(format!("{label}: tipo di filtro non riconosciuto.")),
+        _ => Err(format!("{label}: unrecognized filter type.")),
     }
 }
 
@@ -382,14 +381,14 @@ fn run_sieve(
     preview: String,
     filters: Vec<SieveFilterInput>,
 ) -> Result<SieveCommandResult, String> {
-    let start = parse_u64("Da", &start)?;
-    let end = parse_u64("A", &end)?;
+    let start = parse_u64("Start", &start)?;
+    let end = parse_u64("End", &end)?;
     if start > end {
-        return Err("L'intervallo deve soddisfare Da ≤ A.".to_owned());
+        return Err("The interval must satisfy Start ≤ End.".to_owned());
     }
-    let preview = parse_u64("Anteprima", &preview)?;
+    let preview = parse_u64("Preview", &preview)?;
     if preview > 1_000 {
-        return Err("L'anteprima può contenere al massimo 1.000 valori.".to_owned());
+        return Err("The preview can contain at most 1,000 values.".to_owned());
     }
 
     let mut impossible = false;
@@ -409,15 +408,15 @@ fn run_sieve(
     }
 
     let sieve = ModularSieve::new(built_filters)
-        .map_err(|_| "Non è stato possibile costruire i filtri modulari.".to_owned())?;
+        .map_err(|_| "The modular filters could not be built.".to_owned())?;
     let result = sieve
         .search(start, end, preview as usize)
-        .map_err(|_| "Intervallo non valido.".to_owned())?;
+        .map_err(|_| "Invalid interval.".to_owned())?;
     let percentage = (result.survivor_count as f64 / result.total_values as f64) * 100.0;
     let message = if result.survivor_count == 0 {
-        "Nessun valore compatibile nell'intervallo.".to_owned()
+        "No compatible value in the interval.".to_owned()
     } else {
-        "Ricerca completata.".to_owned()
+        "Search completed.".to_owned()
     };
 
     Ok(SieveCommandResult {
@@ -444,21 +443,21 @@ fn analyze_integer(n: String) -> Result<IntegerAnalysisResult, String> {
     match analyze_integer_decimal(&n).map_err(decimal_analysis_error_message)? {
         DecimalIntegerAnalysis::Neither { n } => Ok(IntegerAnalysisResult {
             n,
-            classification: "né_primo_né_composto".to_owned(),
+            classification: "neither_prime_nor_composite".to_owned(),
             exact: false,
-            primality: "né_primo_né_composto".to_owned(),
+            primality: "neither_prime_nor_composite".to_owned(),
             factors: Vec::new(),
             phi: None,
             lambda: None,
             note: Some(
-                "0 non è né primo né composto; la fattorizzazione prima non è definita.".to_owned(),
+                "0 is neither prime nor composite; prime factorization is undefined.".to_owned(),
             ),
         }),
         DecimalIntegerAnalysis::Exact(analysis) => {
             let classification = match analysis.classification {
-                swissmath_core::IntegerClassification::Unit => "unità",
-                swissmath_core::IntegerClassification::Prime => "primo",
-                swissmath_core::IntegerClassification::Composite => "composto",
+                swissmath_core::IntegerClassification::Unit => "unit",
+                swissmath_core::IntegerClassification::Prime => "prime",
+                swissmath_core::IntegerClassification::Composite => "composite",
             };
             Ok(IntegerAnalysisResult {
                 n: analysis.n.to_string(),
@@ -481,11 +480,11 @@ fn analyze_integer(n: String) -> Result<IntegerAnalysisResult, String> {
         }
         DecimalIntegerAnalysis::U128 { n, primality } => {
             let classification = match primality {
-                PrimalityAssessment::Composite => "composto",
-                PrimalityAssessment::PrimeExact => "primo_esatto",
-                PrimalityAssessment::ExactProofIncomplete => "prova_incompleta",
-                PrimalityAssessment::Neither => "né_primo_né_composto",
-                PrimalityAssessment::ProbablePrime => "probabile_primo",
+                PrimalityAssessment::Composite => "composite",
+                PrimalityAssessment::PrimeExact => "exact_prime",
+                PrimalityAssessment::ExactProofIncomplete => "proof_incomplete",
+                PrimalityAssessment::Neither => "neither_prime_nor_composite",
+                PrimalityAssessment::ProbablePrime => "probable_prime",
             };
             Ok(IntegerAnalysisResult {
                 n,
@@ -497,24 +496,27 @@ fn analyze_integer(n: String) -> Result<IntegerAnalysisResult, String> {
                 lambda: None,
                 note: if primality == PrimalityAssessment::ExactProofIncomplete {
                     Some(
-                        "SwissMath non è riuscito a completare una prova esatta con il percorso rapido disponibile.".to_owned(),
+                        "SwissMath could not complete an exact proof with the available fast path."
+                            .to_owned(),
                     )
                 } else {
                     Some(
-                        "Per numeri oltre 64 bit è disponibile soltanto la valutazione di primalità; fattorizzazione, φ, λ e ordine restano fuori dominio.".to_owned(),
+                        "For numbers beyond 64 bits, only primality assessment is available; factorization, φ, λ, and order are out of scope.".to_owned(),
                     )
                 },
             })
         }
         DecimalIntegerAnalysis::Large { n, primality } => {
             let (classification, primality_label) = match primality {
-                PrimalityAssessment::Composite => ("composto", "composito"),
-                PrimalityAssessment::PrimeExact => ("primo", "primo_esatto"),
-                PrimalityAssessment::Neither => ("né_primo_né_composto", "né_primo_né_composto"),
-                PrimalityAssessment::ExactProofIncomplete => {
-                    ("prova_incompleta", "prova_incompleta")
+                PrimalityAssessment::Composite => ("composite", "composite"),
+                PrimalityAssessment::PrimeExact => ("prime", "exact_prime"),
+                PrimalityAssessment::Neither => {
+                    ("neither_prime_nor_composite", "neither_prime_nor_composite")
                 }
-                PrimalityAssessment::ProbablePrime => ("probabile_primo", "probabile_primo"),
+                PrimalityAssessment::ExactProofIncomplete => {
+                    ("proof_incomplete", "proof_incomplete")
+                }
+                PrimalityAssessment::ProbablePrime => ("probable_prime", "probable_prime"),
             };
             Ok(IntegerAnalysisResult {
                 n,
@@ -525,7 +527,7 @@ fn analyze_integer(n: String) -> Result<IntegerAnalysisResult, String> {
                 phi: None,
                 lambda: None,
                 note: Some(
-                    "Per numeri oltre 128 bit SwissMath esegue un test Baillie–PSW: un risultato \"probabile primo\" non costituisce una prova formale di primalità.".to_owned(),
+                    "For numbers beyond 128 bits, SwissMath runs a Baillie–PSW test: a \"probable prime\" result is not a formal primality proof.".to_owned(),
                 ),
             })
         }
@@ -534,22 +536,22 @@ fn analyze_integer(n: String) -> Result<IntegerAnalysisResult, String> {
 
 fn primality_label(assessment: PrimalityAssessment) -> &'static str {
     match assessment {
-        PrimalityAssessment::Neither => "né_primo_né_composto",
-        PrimalityAssessment::Composite => "composito",
-        PrimalityAssessment::PrimeExact => "primo_esatto",
-        PrimalityAssessment::ExactProofIncomplete => "prova_incompleta",
-        PrimalityAssessment::ProbablePrime => "probabile_primo",
+        PrimalityAssessment::Neither => "neither_prime_nor_composite",
+        PrimalityAssessment::Composite => "composite",
+        PrimalityAssessment::PrimeExact => "exact_prime",
+        PrimalityAssessment::ExactProofIncomplete => "proof_incomplete",
+        PrimalityAssessment::ProbablePrime => "probable_prime",
     }
 }
 
 fn parse_i128(name: &str, value: &str) -> Result<i128, String> {
     let value = value.trim();
     if value.is_empty() {
-        return Err(format!("{name}: inserisci un intero."));
+        return Err(format!("{name}: enter an integer."));
     }
     value
         .parse::<i128>()
-        .map_err(|_| format!("{name}: usa un intero compreso nel dominio signed i128."))
+        .map_err(|_| format!("{name}: use an integer in the signed i128 domain."))
 }
 
 fn calculate_quadratic_symbols(
@@ -557,7 +559,7 @@ fn calculate_quadratic_symbols(
     modulus: String,
 ) -> Result<QuadraticSymbolsResult, String> {
     let a_value = parse_i128("a", &a)?;
-    let modulus_value = parse_u64("Modulo n", &modulus)?;
+    let modulus_value = parse_u64("Modulus n", &modulus)?;
     let jacobi = jacobi_symbol(a_value, modulus_value).map_err(quadratic_error_message)?;
     let legendre = if modulus_value >= 3 && swissmath_core::is_prime(modulus_value) {
         Some(jacobi)
@@ -570,9 +572,9 @@ fn calculate_quadratic_symbols(
         jacobi: jacobi.to_string(),
         legendre: legendre.map(|value| value.to_string()),
         message: if legendre.is_some() {
-            "Simboli di Jacobi e Legendre calcolati.".to_owned()
+            "Jacobi and Legendre symbols computed.".to_owned()
         } else {
-            "Simbolo di Jacobi calcolato.".to_owned()
+            "Jacobi symbol computed.".to_owned()
         },
     })
 }
@@ -580,7 +582,7 @@ fn calculate_quadratic_symbols(
 fn find_modular_roots(a: String, modulus: String) -> Result<ModularRootsResult, String> {
     const ROOT_PREVIEW_LIMIT: usize = 100;
     let a_value = parse_i128("a", &a)?;
-    let modulus_value = parse_u64("Modulo n", &modulus)?;
+    let modulus_value = parse_u64("Modulus n", &modulus)?;
     let roots = modular_square_roots(a_value, modulus_value).map_err(quadratic_error_message)?;
     let exists = !roots.is_empty();
     let root_count = roots.len().to_string();
@@ -596,9 +598,9 @@ fn find_modular_roots(a: String, modulus: String) -> Result<ModularRootsResult, 
         root_count,
         roots: preview,
         message: if exists {
-            "Radici modulari calcolate.".to_owned()
+            "Modular roots computed.".to_owned()
         } else {
-            "Nessuna radice quadrata nel modulo indicato.".to_owned()
+            "No square root exists for the given modulus.".to_owned()
         },
     })
 }
@@ -608,21 +610,21 @@ fn calculate_multiplicative_order(
     modulus: String,
 ) -> Result<OrderCommandResult, String> {
     let a_value = parse_u64("a", &a)?;
-    let modulus_value = parse_u64("Modulo n", &modulus)?;
+    let modulus_value = parse_u64("Modulus n", &modulus)?;
     match multiplicative_order(a_value, modulus_value).map_err(number_theory_error_message)? {
         MultiplicativeOrderResult::Exists(order) => Ok(OrderCommandResult {
             a: a_value.to_string(),
             modulus: modulus_value.to_string(),
             exists: true,
             order: Some(order.to_string()),
-            message: "Ordine moltiplicativo calcolato.".to_owned(),
+            message: "Multiplicative order computed.".to_owned(),
         }),
         MultiplicativeOrderResult::DoesNotExist => Ok(OrderCommandResult {
             a: a_value.to_string(),
             modulus: modulus_value.to_string(),
             exists: false,
             order: None,
-            message: "L'ordine non esiste: a e n non sono coprimi.".to_owned(),
+            message: "The order does not exist: a and n are not coprime.".to_owned(),
         }),
     }
 }
@@ -637,7 +639,7 @@ fn calculate_modular(
     let modulus_value = modulus.get();
     let a = parse_u64("a", &a)? % modulus_value;
     let b = parse_u64("b", &b)? % modulus_value;
-    let exponent = parse_u64("Esponente", &exponent)?;
+    let exponent = parse_u64("Exponent", &exponent)?;
     let context = ModCtx::new(modulus);
 
     Ok(ModularResult {
@@ -660,8 +662,8 @@ fn calculate_crt(
 ) -> Result<CrtResult, String> {
     let modulus_a = parse_modulus(&modulus_a)?;
     let modulus_b = parse_modulus(&modulus_b)?;
-    let residue_a = parse_u64("Residuo A", &residue_a)?;
-    let residue_b = parse_u64("Residuo B", &residue_b)?;
+    let residue_a = parse_u64("Residue A", &residue_a)?;
+    let residue_b = parse_u64("Residue B", &residue_b)?;
     let left = Congruence::new(residue_a, modulus_a);
     let right = Congruence::new(residue_b, modulus_b);
 
@@ -670,20 +672,20 @@ fn calculate_crt(
             compatible: true,
             residue: Some(result.residue().to_string()),
             modulus: Some(result.modulus().get().to_string()),
-            message: "Le due congruenze sono compatibili.".to_owned(),
+            message: "The two congruences are compatible.".to_owned(),
         }),
         Ok(None) => Ok(CrtResult {
             compatible: false,
             residue: None,
             modulus: None,
-            message: "Le due congruenze sono incompatibili.".to_owned(),
+            message: "The two congruences are incompatible.".to_owned(),
         }),
         Err(error) => Ok(CrtResult {
             compatible: true,
             residue: None,
             modulus: None,
             message: format!(
-                "Le congruenze sono compatibili, ma il minimo comune multiplo non è rappresentabile: {error}."
+                "The congruences are compatible, but their least common multiple cannot be represented: {error}."
             ),
         }),
     }
@@ -724,7 +726,7 @@ fn calculate_residues(
                 values: set_values(&set),
                 len: set.len().to_string(),
                 query: None,
-                message: "Intersezione calcolata.".to_owned(),
+                message: "Intersection computed.".to_owned(),
             }
         }
         "union" => {
@@ -734,7 +736,7 @@ fn calculate_residues(
                 values: set_values(&set),
                 len: set.len().to_string(),
                 query: None,
-                message: "Unione calcolata.".to_owned(),
+                message: "Union computed.".to_owned(),
             }
         }
         "difference" => {
@@ -744,7 +746,7 @@ fn calculate_residues(
                 values: set_values(&set),
                 len: set.len().to_string(),
                 query: None,
-                message: "Differenza A \\ B calcolata.".to_owned(),
+                message: "Difference A \\ B computed.".to_owned(),
             }
         }
         "complement" => {
@@ -754,7 +756,7 @@ fn calculate_residues(
                 values: set_values(&set),
                 len: set.len().to_string(),
                 query: None,
-                message: "Complemento di A calcolato.".to_owned(),
+                message: "Complement of A computed.".to_owned(),
             }
         }
         "intersection_count" => ResidueResult {
@@ -765,7 +767,7 @@ fn calculate_residues(
                 .map_err(|error| error.to_string())?
                 .to_string(),
             query: Some("count".to_owned()),
-            message: "Cardinalità dell'intersezione.".to_owned(),
+            message: "Intersection cardinality.".to_owned(),
         },
         "intersects" => ResidueResult {
             modulus: modulus_value.to_string(),
@@ -775,7 +777,7 @@ fn calculate_residues(
                 .map_err(|error| error.to_string())?
                 .to_string(),
             query: Some("boolean".to_owned()),
-            message: "L'intersezione è non vuota?".to_owned(),
+            message: "Is the intersection non-empty?".to_owned(),
         },
         "is_subset_of" => ResidueResult {
             modulus: modulus_value.to_string(),
@@ -785,9 +787,9 @@ fn calculate_residues(
                 .map_err(|error| error.to_string())?
                 .to_string(),
             query: Some("boolean".to_owned()),
-            message: "A è sottoinsieme di B?".to_owned(),
+            message: "Is A a subset of B?".to_owned(),
         },
-        _ => return Err("Operazione ResidueSet non riconosciuta.".to_owned()),
+        _ => return Err("Unrecognized ResidueSet operation.".to_owned()),
     };
 
     Ok(result)
@@ -852,7 +854,7 @@ struct SieveInput {
 }
 
 fn parse_payload<T: DeserializeOwned>(payload: &str) -> Result<T, String> {
-    serde_json::from_str(payload).map_err(|error| format!("Payload WASM non valido: {error}."))
+    serde_json::from_str(payload).map_err(|error| format!("Invalid WASM payload: {error}."))
 }
 
 fn encode_result<T: Serialize>(result: Result<T, String>) -> String {
@@ -861,7 +863,7 @@ fn encode_result<T: Serialize>(result: Result<T, String>) -> String {
         Err(error) => serde_json::json!({ "ok": false, "error": error }),
     };
     serde_json::to_string(&value).unwrap_or_else(|_| {
-        "{\"ok\":false,\"error\":\"Risultato WASM non serializzabile.\"}".to_owned()
+        "{\"ok\":false,\"error\":\"The WASM result could not be serialized.\"}".to_owned()
     })
 }
 
@@ -887,7 +889,7 @@ fn field<'a>(input: &'a Value, name: &str) -> Result<&'a str, String> {
         .and_then(Value::as_str)
         .map(str::trim)
         .filter(|value| !value.is_empty())
-        .ok_or_else(|| format!("{name}: inserisci un valore."))
+        .ok_or_else(|| format!("{name}: enter a value."))
 }
 
 fn field_u64(input: &Value, name: &str) -> Result<u64, String> {
@@ -897,13 +899,13 @@ fn field_u64(input: &Value, name: &str) -> Result<u64, String> {
 fn field_i64(input: &Value, name: &str) -> Result<i64, String> {
     field(input, name)?
         .parse::<i64>()
-        .map_err(|_| format!("{name}: usa un intero compreso nell'intervallo i64."))
+        .map_err(|_| format!("{name}: use an integer in the i64 range."))
 }
 
 fn field_u128(input: &Value, name: &str) -> Result<u128, String> {
     field(input, name)?
         .parse::<u128>()
-        .map_err(|_| format!("{name}: usa un intero non negativo compreso nell'intervallo u128."))
+        .map_err(|_| format!("{name}: use a non-negative integer in the u128 range."))
 }
 
 fn parse_rational_value(value: &str) -> Result<Rational, String> {
@@ -911,16 +913,16 @@ fn parse_rational_value(value: &str) -> Result<Rational, String> {
         let numerator = numerator
             .trim()
             .parse::<BigInt>()
-            .map_err(|_| "Numeratore non valido.".to_owned())?;
+            .map_err(|_| "Invalid numerator.".to_owned())?;
         let denominator = denominator
             .trim()
             .parse::<BigInt>()
-            .map_err(|_| "Denominatore non valido.".to_owned())?;
+            .map_err(|_| "Invalid denominator.".to_owned())?;
         Rational::new(numerator, denominator)
-            .map_err(|_| "Il denominatore non può essere zero.".to_owned())
+            .map_err(|_| "The denominator cannot be zero.".to_owned())
     } else {
         parse_decimal(value)
-            .map_err(|_| "Usa un intero, un decimale o una frazione a/b valida.".to_owned())
+            .map_err(|_| "Use a valid integer, decimal, or a/b fraction.".to_owned())
     }
 }
 
@@ -930,11 +932,11 @@ fn parse_integer_list(value: &str) -> Result<Vec<i64>, String> {
         .filter(|part| !part.is_empty())
         .map(|part| {
             part.parse::<i64>()
-                .map_err(|_| format!("Termine non valido: {part}."))
+                .map_err(|_| format!("Invalid term: {part}."))
         })
         .collect::<Result<Vec<_>, _>>()?;
     if values.is_empty() {
-        Err("Inserisci almeno un valore.".to_owned())
+        Err("Enter at least one value.".to_owned())
     } else {
         Ok(values)
     }
@@ -946,11 +948,11 @@ fn parse_float_list(value: &str) -> Result<Vec<f64>, String> {
         .filter(|part| !part.is_empty())
         .map(|part| {
             part.parse::<f64>()
-                .map_err(|_| format!("Valore numerico non valido: {part}."))
+                .map_err(|_| format!("Invalid numeric value: {part}."))
         })
         .collect::<Result<Vec<_>, _>>()?;
     if values.len() < 2 {
-        Err("Inserisci almeno due valori.".to_owned())
+        Err("Enter at least two values.".to_owned())
     } else {
         Ok(values)
     }
@@ -964,13 +966,13 @@ fn parse_integer_matrix(value: &str) -> Result<Vec<Vec<i64>>, String> {
         .map(parse_integer_list)
         .collect::<Result<Vec<_>, _>>()?;
     if rows.is_empty() || rows[0].is_empty() || rows.iter().any(|row| row.len() != rows[0].len()) {
-        return Err("La matrice deve essere rettangolare e non vuota.".to_owned());
+        return Err("The matrix must be non-empty and rectangular.".to_owned());
     }
     Ok(rows)
 }
 
 fn rational_matrix(rows: &[Vec<i64>]) -> Result<RationalMatrix, String> {
-    RationalMatrix::from_integers(rows).map_err(|_| "La matrice non è valida.".to_owned())
+    RationalMatrix::from_integers(rows).map_err(|_| "The matrix is invalid.".to_owned())
 }
 
 fn rational_rows_json(rows: &[Vec<Rational>]) -> Value {
@@ -999,7 +1001,7 @@ fn run_tool(tool: &str, input: &Value) -> Result<Value, String> {
         }
         "powmod" => {
             let modulus = Modulus::new(field_u64(input, "modulus")?)
-                .ok_or_else(|| "Il modulo deve essere positivo.".to_owned())?;
+                .ok_or_else(|| "The modulus must be positive.".to_owned())?;
             let base = field_u64(input, "a")? % modulus.get();
             Ok(
                 json!({ "result": ModCtx::new(modulus).pow(base, field_u64(input, "exponent")?).to_string(), "modulus": modulus.get().to_string() }),
@@ -1007,42 +1009,43 @@ fn run_tool(tool: &str, input: &Value) -> Result<Value, String> {
         }
         "invmod" => {
             let modulus = Modulus::new(field_u64(input, "modulus")?)
-                .ok_or_else(|| "Il modulo deve essere positivo.".to_owned())?;
+                .ok_or_else(|| "The modulus must be positive.".to_owned())?;
             let a = field_u64(input, "a")? % modulus.get();
-            let inverse = ModCtx::new(modulus).inv(a).ok_or_else(|| {
-                format!("Nessun inverso modulare: gcd({a},{}) ≠ 1.", modulus.get())
-            })?;
+            let inverse = ModCtx::new(modulus)
+                .inv(a)
+                .ok_or_else(|| format!("No modular inverse: gcd({a},{}) ≠ 1.", modulus.get()))?;
             Ok(json!({ "result": inverse.to_string(), "modulus": modulus.get().to_string() }))
         }
         "crt" => {
             let rows = parse_integer_matrix(field(input, "congruences")?)?;
             if rows.iter().any(|row| row.len() != 2 || row[1] <= 0) {
                 return Err(
-                    "Ogni riga CRT deve contenere residuo e modulo positivo.".to_owned(),
+                    "Every CRT row must contain a residue and a positive modulus.".to_owned(),
                 );
             }
             let congruences = rows
                 .into_iter()
                 .map(|row| {
-                    let modulus = u64::try_from(row[1])
-                        .map_err(|_| "Modulo CRT non valido.".to_owned())?;
+                    let modulus =
+                        u64::try_from(row[1]).map_err(|_| "Invalid CRT modulus.".to_owned())?;
                     let modulus = Modulus::new(modulus)
-                        .ok_or_else(|| "Il modulo CRT deve essere positivo.".to_owned())?;
-                    let residue =
-                        i128::from(row[0]).rem_euclid(i128::from(modulus.get())) as u64;
+                        .ok_or_else(|| "The CRT modulus must be positive.".to_owned())?;
+                    let residue = i128::from(row[0]).rem_euclid(i128::from(modulus.get())) as u64;
                     Ok(Congruence::new(residue, modulus))
                 })
                 .collect::<Result<Vec<_>, String>>()?;
             let result = crt_fold(congruences)
-                .map_err(|_| "Il modulo CRT combinato supera il dominio u64.".to_owned())?
-                .ok_or_else(|| "Le congruenze sono incompatibili.".to_owned())?;
-            Ok(json!({ "result": format!("x ≡ {} (mod {})", result.residue(), result.modulus().get()), "residue": result.residue().to_string(), "modulus": result.modulus().get().to_string() }))
+                .map_err(|_| "The combined CRT modulus exceeds the u64 domain.".to_owned())?
+                .ok_or_else(|| "The congruences are incompatible.".to_owned())?;
+            Ok(
+                json!({ "result": format!("x ≡ {} (mod {})", result.residue(), result.modulus().get()), "residue": result.residue().to_string(), "modulus": result.modulus().get().to_string() }),
+            )
         }
         "iroot" => {
             let degree = u32::try_from(field_u64(input, "degree")?)
-                .map_err(|_| "Il grado è troppo grande.".to_owned())?;
+                .map_err(|_| "The degree is too large.".to_owned())?;
             let result = integer_nth_root(field_u128(input, "n")?, degree)
-                .ok_or_else(|| "Il grado deve essere positivo.".to_owned())?;
+                .ok_or_else(|| "The degree must be positive.".to_owned())?;
             Ok(
                 json!({ "result": result.floor.to_string(), "exact": result.exact, "degree": degree }),
             )
@@ -1053,18 +1056,18 @@ fn run_tool(tool: &str, input: &Value) -> Result<Value, String> {
                 Some(value) => {
                     json!({"result": format!("{}^{}", value.base, value.exponent), "base": value.base.to_string(), "exponent": value.exponent})
                 }
-                None => json!({"result": "Non è una potenza perfetta", "exists": false}),
+                None => json!({"result": "It is not a perfect power", "exists": false}),
             })
         }
         "base-convert" => {
             let from = u32::try_from(field_u64(input, "from_base")?)
-                .map_err(|_| "Base non valida.".to_owned())?;
+                .map_err(|_| "Invalid base.".to_owned())?;
             let to = u32::try_from(field_u64(input, "to_base")?)
-                .map_err(|_| "Base non valida.".to_owned())?;
+                .map_err(|_| "Invalid base.".to_owned())?;
             let value = parse_in_base(field(input, "value")?, from)
-                .map_err(|_| "Valore o base di partenza non validi (basi 2–36).".to_owned())?;
+                .map_err(|_| "Invalid value or source base (bases 2–36).".to_owned())?;
             Ok(
-                json!({ "result": format_in_base(value, to).map_err(|_| "Base di destinazione non valida (2–36).".to_owned())?, "decimal": value.to_string() }),
+                json!({ "result": format_in_base(value, to).map_err(|_| "Invalid target base (2–36).".to_owned())?, "decimal": value.to_string() }),
             )
         }
         "isprime" => Ok(
@@ -1075,7 +1078,7 @@ fn run_tool(tool: &str, input: &Value) -> Result<Value, String> {
         ),
         "previousprime" => Ok(json!({
             "result": previous_prime(field_u64(input, "n")?)
-                .ok_or_else(|| "Non esiste un primo strettamente precedente.".to_owned())?
+                .ok_or_else(|| "No strictly smaller prime exists.".to_owned())?
                 .to_string(),
             "exact": true
         })),
@@ -1110,12 +1113,12 @@ fn run_tool(tool: &str, input: &Value) -> Result<Value, String> {
                 "mobius" => {
                     Ok(json!({ "result": factorization.mobius().to_string(), "factors": factors }))
                 }
-                "radical" => Ok(
-                    json!({ "result": factorization.radical().to_string(), "factors": factors }),
-                ),
-                "squarefree" => Ok(
-                    json!({ "result": factorization.is_squarefree(), "factors": factors }),
-                ),
+                "radical" => {
+                    Ok(json!({ "result": factorization.radical().to_string(), "factors": factors }))
+                }
+                "squarefree" => {
+                    Ok(json!({ "result": factorization.is_squarefree(), "factors": factors }))
+                }
                 "divisor-count" => Ok(
                     json!({ "result": factorization.divisor_count().to_string(), "factors": factors }),
                 ),
@@ -1147,7 +1150,7 @@ fn run_tool(tool: &str, input: &Value) -> Result<Value, String> {
         }
         "multiplicative-order" => {
             let modulus = Modulus::new(field_u64(input, "modulus")?)
-                .ok_or_else(|| "Il modulo deve essere positivo.".to_owned())?;
+                .ok_or_else(|| "The modulus must be positive.".to_owned())?;
             match multiplicative_order(field_u64(input, "a")?, modulus.get())
                 .map_err(number_theory_error_message)?
             {
@@ -1155,7 +1158,7 @@ fn run_tool(tool: &str, input: &Value) -> Result<Value, String> {
                     Ok(json!({ "result": order.to_string(), "exists": true }))
                 }
                 MultiplicativeOrderResult::DoesNotExist => {
-                    Err("L'ordine non esiste perché gcd(a,n) ≠ 1.".to_owned())
+                    Err("The order does not exist because gcd(a,n) ≠ 1.".to_owned())
                 }
             }
         }
@@ -1171,7 +1174,7 @@ fn run_tool(tool: &str, input: &Value) -> Result<Value, String> {
             let max_denominator = field_u64(input, "max_denominator")?;
             let result =
                 rationalize_decimal(field(input, "value")?, max_denominator).map_err(|_| {
-                    "Impossibile razionalizzare l'input con il limite indicato.".to_owned()
+                    "Could not rationalize the input with the specified bound.".to_owned()
                 })?;
             Ok(
                 json!({ "result": result.fraction.to_string(), "decimal": result.fraction.to_f64(), "absolute_error": result.absolute_error.to_f64(), "exact_error": result.absolute_error.to_string(), "max_denominator": max_denominator.to_string() }),
@@ -1184,11 +1187,9 @@ fn run_tool(tool: &str, input: &Value) -> Result<Value, String> {
                 field_u64(input, "bound")?,
                 field_u64(input, "bound")?,
             )
-            .map_err(|_| {
-                "Parametri non validi per la ricostruzione razionale.".to_owned()
-            })?
+            .map_err(|_| "Invalid parameters for rational reconstruction.".to_owned())?
             .ok_or_else(|| {
-                "Nessuna ricostruzione razionale soddisfa i limiti indicati.".to_owned()
+                "No rational reconstruction satisfies the specified bounds.".to_owned()
             })?;
             Ok(json!({ "result": result.to_string() }))
         }
@@ -1204,7 +1205,7 @@ fn run_tool(tool: &str, input: &Value) -> Result<Value, String> {
             let left = Polynomial::from_integers(&parse_integer_list(field(input, "left")?)?);
             let right = Polynomial::from_integers(&parse_integer_list(field(input, "right")?)?);
             let result = polynomial_gcd(left, right)
-                .map_err(|_| "Impossibile calcolare il MCD polinomiale.".to_owned())?;
+                .map_err(|_| "Could not compute the polynomial GCD.".to_owned())?;
             Ok(
                 json!({ "result": result.format_human("x"), "coefficients": result.coefficients().iter().map(ToString::to_string).collect::<Vec<_>>() }),
             )
@@ -1212,7 +1213,7 @@ fn run_tool(tool: &str, input: &Value) -> Result<Value, String> {
         "interpolate" => {
             let rows = parse_integer_matrix(field(input, "points")?)?;
             if rows.iter().any(|row| row.len() != 2) {
-                return Err("Ogni punto deve contenere esattamente x e y.".to_owned());
+                return Err("Every point must contain exactly x and y.".to_owned());
             }
             let points = rows
                 .iter()
@@ -1220,9 +1221,9 @@ fn run_tool(tool: &str, input: &Value) -> Result<Value, String> {
                 .collect::<Vec<_>>();
             let result = interpolate(&points).map_err(|error| match error {
                 swissmath_core::PolynomialError::DuplicateAbscissa => {
-                    "L'interpolazione richiede ascisse x distinte.".to_owned()
+                    "Interpolation requires distinct x coordinates.".to_owned()
                 }
-                _ => "Impossibile interpolare i punti.".to_owned(),
+                _ => "Could not interpolate the points.".to_owned(),
             })?;
             Ok(
                 json!({ "result": result.format_human("x"), "coefficients": result.coefficients().iter().map(ToString::to_string).collect::<Vec<_>>() }),
@@ -1235,7 +1236,7 @@ fn run_tool(tool: &str, input: &Value) -> Result<Value, String> {
                 .collect::<Vec<_>>();
             let result = finite_differences(&values);
             Ok(
-                json!({ "result": result.polynomial_degree.map_or_else(|| "Nessun grado determinato".to_owned(), |degree| format!("Progressione polinomiale di grado {degree}")), "degree": result.polynomial_degree, "rows": result.rows.iter().map(|row| row.iter().map(ToString::to_string).collect::<Vec<_>>()).collect::<Vec<_>>() }),
+                json!({ "result": result.polynomial_degree.map_or_else(|| "No degree determined".to_owned(), |degree| format!("Polynomial progression of degree {degree}")), "degree": result.polynomial_degree, "rows": result.rows.iter().map(|row| row.iter().map(ToString::to_string).collect::<Vec<_>>()).collect::<Vec<_>>() }),
             )
         }
         "det" | "rank" | "rref" | "nullspace" | "hnf" | "snf" | "solve" => {
@@ -1245,10 +1246,10 @@ fn run_tool(tool: &str, input: &Value) -> Result<Value, String> {
             let values = parse_float_list(field(input, "values")?)?;
             let tolerance = field(input, "tolerance")?
                 .parse::<f64>()
-                .map_err(|_| "Tolleranza non valida.".to_owned())?;
+                .map_err(|_| "Invalid tolerance.".to_owned())?;
             let limit = field_u64(input, "coefficient_limit")?;
             let result = pslq(&values, tolerance, limit, 10_000).map_err(|_| {
-                "Nessuna relazione trovata entro precisione e limiti indicati.".to_owned()
+                "No relation found within the specified precision and limits.".to_owned()
             })?;
             Ok(
                 json!({ "result": result.coefficients.iter().map(i64::to_string).collect::<Vec<_>>().join(", "), "coefficients": result.coefficients, "residual": result.residual, "max_coefficient": result.max_coefficient, "iterations": result.iterations, "label": "Candidate integer relation" }),
@@ -1257,7 +1258,7 @@ fn run_tool(tool: &str, input: &Value) -> Result<Value, String> {
         "recurrence" => {
             let sequence = parse_integer_list(field(input, "sequence")?)?;
             let result = find_recurrence(&sequence).map_err(|_| {
-                "Termini insufficienti o nessuna ricorrenza intera breve validata.".to_owned()
+                "Insufficient terms or no short validated integer recurrence.".to_owned()
             })?;
             Ok(
                 json!({ "result": result.coefficients.iter().enumerate().map(|(index, coefficient)| format!("{coefficient}·a(n-{})", index + 1)).collect::<Vec<_>>().join(" + "), "coefficients": result.coefficients, "order": result.order, "terms_checked": result.terms_checked, "exact": result.exact }),
@@ -1266,7 +1267,7 @@ fn run_tool(tool: &str, input: &Value) -> Result<Value, String> {
         "guess" => {
             let sequence = parse_integer_list(field(input, "sequence")?)?;
             let result = guess_sequence(&sequence)
-                .map_err(|_| "Servono più termini per formulare ipotesi esatte.".to_owned())?;
+                .map_err(|_| "More terms are needed to formulate exact hypotheses.".to_owned())?;
             let candidates = result
                 .iter()
                 .map(|candidate| {
@@ -1279,10 +1280,10 @@ fn run_tool(tool: &str, input: &Value) -> Result<Value, String> {
                 })
                 .collect::<Vec<_>>();
             Ok(
-                json!({ "result": result.first().map(|candidate| candidate.formula.clone()).unwrap_or_else(|| "Nessuna struttura semplice trovata".to_owned()), "candidates": candidates }),
+                json!({ "result": result.first().map(|candidate| candidate.formula.clone()).unwrap_or_else(|| "No simple structure found".to_owned()), "candidates": candidates }),
             )
         }
-        _ => Err(format!("Strumento non riconosciuto: {tool}.")),
+        _ => Err(format!("Unrecognized tool: {tool}.")),
     }
 }
 
@@ -1295,7 +1296,7 @@ fn run_matrix_tool(tool: &str, input: &Value) -> Result<Value, String> {
         .collect::<Vec<_>>();
     match tool {
         "det" => Ok(
-            json!({ "result": determinant_bareiss(&integers).map_err(|_| "Il determinante richiede una matrice quadrata.".to_owned())?.to_string() }),
+            json!({ "result": determinant_bareiss(&integers).map_err(|_| "The determinant requires a square matrix.".to_owned())?.to_string() }),
         ),
         "rank" => Ok(json!({ "result": rank(&rational).to_string() })),
         "rref" => {
@@ -1312,7 +1313,7 @@ fn run_matrix_tool(tool: &str, input: &Value) -> Result<Value, String> {
         }
         "hnf" => {
             let result = hermite_normal_form(&integers)
-                .map_err(|_| "Impossibile calcolare la forma normale di Hermite.".to_owned())?;
+                .map_err(|_| "Could not compute the Hermite normal form.".to_owned())?;
             let strings = result
                 .iter()
                 .map(|row| row.iter().map(ToString::to_string).collect::<Vec<_>>())
@@ -1321,7 +1322,7 @@ fn run_matrix_tool(tool: &str, input: &Value) -> Result<Value, String> {
         }
         "snf" => {
             let result = smith_normal_form_invariants(&integers)
-                .map_err(|_| "Impossibile calcolare gli invarianti di Smith.".to_owned())?;
+                .map_err(|_| "Could not compute the Smith invariants.".to_owned())?;
             Ok(
                 json!({ "result": result.iter().map(ToString::to_string).collect::<Vec<_>>().join(", "), "invariants": result.iter().map(ToString::to_string).collect::<Vec<_>>() }),
             )
@@ -1332,9 +1333,9 @@ fn run_matrix_tool(tool: &str, input: &Value) -> Result<Value, String> {
                 .map(Rational::from_i64)
                 .collect::<Vec<_>>();
             match solve(&rational, &rhs).map_err(|_| {
-                "Il vettore dei termini noti non ha dimensione compatibile.".to_owned()
+                "The right-hand-side vector has an incompatible dimension.".to_owned()
             })? {
-                LinearSystemSolution::None => Err("Il sistema non ha soluzioni.".to_owned()),
+                LinearSystemSolution::None => Err("The system has no solutions.".to_owned()),
                 LinearSystemSolution::Unique(values) => Ok(
                     json!({ "result": values.iter().map(ToString::to_string).collect::<Vec<_>>().join(", "), "kind": "unique", "solution": values.iter().map(ToString::to_string).collect::<Vec<_>>() }),
                 ),
@@ -1565,7 +1566,7 @@ mod tests {
     #[test]
     fn integer_analysis_command_returns_one_exact_bundle() {
         let result = analyze_integer("360".into()).unwrap();
-        assert_eq!(result.classification, "composto");
+        assert_eq!(result.classification, "composite");
         assert_eq!(result.phi.as_deref(), Some("96"));
         assert_eq!(result.lambda.as_deref(), Some("12"));
         assert_eq!(
@@ -1578,7 +1579,7 @@ mod tests {
         );
 
         let prime = analyze_integer("2".into()).unwrap();
-        assert_eq!(prime.classification, "primo");
+        assert_eq!(prime.classification, "prime");
         assert_eq!(prime.phi.as_deref(), Some("1"));
         assert_eq!(prime.lambda.as_deref(), Some("1"));
     }
@@ -1598,24 +1599,24 @@ mod tests {
     fn integer_command_routes_large_primality_without_fake_factors() {
         let result = analyze_integer("170141183460469231731687303715884105727".into()).unwrap();
         assert!(!result.exact);
-        assert_eq!(result.classification, "prova_incompleta");
-        assert_eq!(result.primality, "prova_incompleta");
+        assert_eq!(result.classification, "proof_incomplete");
+        assert_eq!(result.primality, "proof_incomplete");
         assert!(result.factors.is_empty());
         assert!(result.phi.is_none());
         assert!(result.lambda.is_none());
-        assert!(result.note.as_deref().unwrap().contains("prova esatta"));
+        assert!(result.note.as_deref().unwrap().contains("exact proof"));
     }
 
     #[test]
     fn integer_command_exposes_neither_semantics_for_zero_and_one() {
         let zero = analyze_integer("0".into()).unwrap();
-        assert_eq!(zero.classification, "né_primo_né_composto");
-        assert_eq!(zero.primality, "né_primo_né_composto");
+        assert_eq!(zero.classification, "neither_prime_nor_composite");
+        assert_eq!(zero.primality, "neither_prime_nor_composite");
         assert!(zero.phi.is_none());
 
         let one = analyze_integer("1".into()).unwrap();
-        assert_eq!(one.classification, "unità");
-        assert_eq!(one.primality, "né_primo_né_composto");
+        assert_eq!(one.classification, "unit");
+        assert_eq!(one.primality, "neither_prime_nor_composite");
         assert_eq!(one.phi.as_deref(), Some("1"));
     }
 
@@ -1623,13 +1624,13 @@ mod tests {
     fn integer_command_exposes_u128_exact_and_composite_outcomes() {
         let prime = analyze_integer("39614081257132185645928677377".into()).unwrap();
         assert!(!prime.exact);
-        assert_eq!(prime.classification, "primo_esatto");
-        assert_eq!(prime.primality, "primo_esatto");
+        assert_eq!(prime.classification, "exact_prime");
+        assert_eq!(prime.primality, "exact_prime");
 
         let composite = analyze_integer("18446744073709551618".into()).unwrap();
         assert!(!composite.exact);
-        assert_eq!(composite.classification, "composto");
-        assert_eq!(composite.primality, "composito");
+        assert_eq!(composite.classification, "composite");
+        assert_eq!(composite.primality, "composite");
     }
 
     #[test]
@@ -1637,8 +1638,8 @@ mod tests {
         let value = "6864797660130609714981900799081393217269435300143305409394463459185543183397656052122559640661454554977296311391480858037121987999716643812574028291115057151";
         let result = analyze_integer(value.into()).unwrap();
         assert!(!result.exact);
-        assert_eq!(result.classification, "probabile_primo");
-        assert_eq!(result.primality, "probabile_primo");
+        assert_eq!(result.classification, "probable_prime");
+        assert_eq!(result.primality, "probable_prime");
         assert!(result.note.as_deref().unwrap().contains("Baillie"));
     }
 
@@ -1654,6 +1655,6 @@ mod tests {
         assert_eq!(roots.roots, vec!["6", "7"]);
 
         let unsupported = find_modular_roots("6".into(), "15".into());
-        assert!(unsupported.unwrap_err().contains("non sono coprimi"));
+        assert!(unsupported.unwrap_err().contains("non-coprime"));
     }
 }

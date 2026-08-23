@@ -105,6 +105,13 @@ select { appearance: none; background-image: linear-gradient(45deg, transparent 
 .wide-field { grid-column: 1 / -1; }
 .tool-result-card { display: grid; gap: 13px; border: 1px solid rgba(101, 225, 196, .22); border-radius: 15px; background: linear-gradient(145deg, rgba(57, 153, 132, .15), rgba(20, 35, 56, .72)); padding: 23px; }
 .tool-result-card > strong { color: var(--accent); font: 27px Georgia, serif; line-height: 1.35; overflow-wrap: anywhere; white-space: pre-wrap; }
+.matrix-result { overflow-x: auto; padding: 4px 0; }
+.matrix-view + .matrix-view { margin-top: 18px; }
+.matrix-view-title { margin: 0 0 4px 2px; color: var(--muted); font-size: 11px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; }
+.matrix-result table { border-collapse: separate; border-spacing: 6px; margin: -6px; }
+.matrix-result th, .matrix-result td { min-width: 58px; padding: 10px 13px; border: 1px solid rgba(101, 225, 196, .24); border-radius: 8px; color: var(--text); background: rgba(4, 12, 23, .48); font: 15px/1.2 ui-monospace, SFMono-Regular, Consolas, monospace; text-align: right; white-space: nowrap; }
+.matrix-result th { min-width: 34px; color: var(--muted); background: transparent; border-color: transparent; font-size: 10px; font-weight: 600; text-align: center; }
+.matrix-result td:first-child { border-left-color: rgba(101, 225, 196, .42); }
 .tool-details { max-height: 380px; overflow: auto; margin: 0; padding: 14px; border: 1px solid var(--line); border-radius: 10px; color: #b9c9dc; background: rgba(4, 12, 23, .45); font: 11px/1.55 ui-monospace, SFMono-Regular, Consolas, monospace; white-space: pre-wrap; overflow-wrap: anywhere; }
 .batch-results { overflow: auto; border: 1px solid var(--line); border-radius: 10px; }
 .batch-results table { width: 100%; border-collapse: collapse; font-size: 11px; }
@@ -160,7 +167,7 @@ select { appearance: none; background-image: linear-gradient(45deg, transparent 
 .query-answer strong { color: var(--violet); }
 .result-message { color: #b9c8da; font-size: 12px; margin: 18px 0 13px; }
 .residue-values { color: #b9d8d0; background: rgba(4, 12, 23, .45); border: 1px solid var(--line); border-radius: 10px; padding: 14px; font: 13px ui-monospace, SFMono-Regular, Consolas, monospace; line-height: 1.8; overflow-wrap: anywhere; min-height: 49px; }
-.residue-values:empty::before { content: "Nessun valore da visualizzare"; color: #637895; font-family: "Segoe UI", sans-serif; font-size: 11px; }
+.residue-values:empty::before { content: "No values to display"; color: #637895; font-family: "Segoe UI", sans-serif; font-size: 11px; }
 .quadratic-metric-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .quadratic-roots-card { margin-top: 24px; }
 

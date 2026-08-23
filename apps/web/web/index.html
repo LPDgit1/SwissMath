@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="it">
+<html lang="en">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -19,73 +19,74 @@
           </div>
         </div>
 
-        <nav class="main-nav category-nav" aria-label="Famiglie matematiche">
-          <button class="category-button active" data-category="arithmetic" type="button"><span class="nav-icon">±</span><span><strong>Aritmetica</strong><small>Interi e congruenze</small></span></button>
-          <button class="category-button" data-category="number-theory" type="button"><span class="nav-icon">π</span><span><strong>Teoria dei numeri</strong><small>Primi e fattori</small></span></button>
-          <button class="category-button" data-category="fractions" type="button"><span class="nav-icon">⅚</span><span><strong>Frazioni</strong><small>Approssimazioni esatte</small></span></button>
-          <button class="category-button" data-category="polynomials" type="button"><span class="nav-icon">ƒ</span><span><strong>Polinomi</strong><small>Valori e interpolazione</small></span></button>
-          <button class="category-button" data-category="linear-algebra" type="button"><span class="nav-icon">▦</span><span><strong>Algebra lineare</strong><small>Matrici esatte</small></span></button>
-          <button class="category-button" data-category="discovery" type="button"><span class="nav-icon">✦</span><span><strong>Discovery</strong><small>Strutture candidate</small></span></button>
+        <nav class="main-nav category-nav" aria-label="Mathematical families">
+          <button class="category-button active" data-category="arithmetic" type="button"><span class="nav-icon">±</span><span><strong>Arithmetic</strong><small>Integers and congruences</small></span></button>
+          <button class="category-button" data-category="number-theory" type="button"><span class="nav-icon">π</span><span><strong>Number theory</strong><small>Primes and factors</small></span></button>
+          <button class="category-button" data-category="fractions" type="button"><span class="nav-icon">⅚</span><span><strong>Fractions</strong><small>Exact approximations</small></span></button>
+          <button class="category-button" data-category="polynomials" type="button"><span class="nav-icon">ƒ</span><span><strong>Polynomials</strong><small>Values and interpolation</small></span></button>
+          <button class="category-button" data-category="linear-algebra" type="button"><span class="nav-icon">▦</span><span><strong>Linear algebra</strong><small>Exact matrices</small></span></button>
+          <button class="category-button" data-category="discovery" type="button"><span class="nav-icon">✦</span><span><strong>Discovery</strong><small>Candidate structures</small></span></button>
         </nav>
 
         <div class="sidebar-footer">
-          <div class="offline-pill"><span class="status-dot"></span> Esecuzione locale</div>
-          <p>Il motore Rust/WASM calcola nel browser.</p>
+          <div class="offline-pill"><span class="status-dot"></span> Local execution</div>
+          <p>The Rust/WASM engine runs in your browser.</p>
         </div>
       </aside>
 
       <main class="content">
         <header class="topbar">
           <div>
-            <div class="eyebrow">LABORATORIO MATEMATICO ESATTO</div>
-            <h1 id="page-title">Aritmetica</h1>
-            <p class="site-subtitle">Un solo strumento alla volta, con input e risultati coerenti.</p>
+            <div class="eyebrow">EXACT MATHEMATICS LAB</div>
+            <h1 id="page-title">Arithmetic</h1>
+            <p class="site-subtitle">One tool at a time, with consistent inputs and results.</p>
           </div>
-          <div class="topbar-note"><span class="spark" aria-hidden="true">✦</span> Piccolo, veloce, rigoroso</div>
+          <div class="topbar-note"><span class="spark" aria-hidden="true">✦</span> Compact, fast, rigorous</div>
         </header>
 
-        <div id="wasm-loading" class="wasm-loading" role="status" aria-live="polite">Caricamento del motore matematico locale… Se il messaggio rimane visibile, avvia SwissMath-Web-Portable.exe senza aprire index.html direttamente.</div>
+        <div id="wasm-loading" class="wasm-loading" role="status" aria-live="polite">Loading the local mathematics engine… If this message remains visible, start SwissMath-Web-Portable.exe instead of opening index.html directly.</div>
 
         <div id="result-actions" class="result-actions hidden" aria-live="polite">
-          <div class="result-actions-copy"><span class="metric-label">Preflight risultato</span><strong id="result-actions-context">Nessun risultato</strong></div>
+          <div class="result-actions-copy"><span class="metric-label">Result preflight</span><strong id="result-actions-context">No result</strong></div>
           <div class="result-actions-buttons">
-            <button id="copy-result" class="secondary-button" type="button">Copia</button>
-            <button id="copy-json" class="secondary-button" type="button">Copia JSON</button>
+            <button id="copy-result" class="secondary-button" type="button">Copy</button>
+            <button id="copy-json" class="secondary-button" type="button">Copy JSON</button>
             <button id="download-json" class="secondary-button" type="button">Download JSON</button>
             <button id="download-csv" class="secondary-button" type="button">Download CSV</button>
-            <button id="copy-command" class="secondary-button" type="button">Copia comando</button>
-            <button id="share-result" class="secondary-button" type="button">Condividi</button>
-            <button id="save-result" class="secondary-button" type="button">Salva risultato</button>
-            <button id="print-result" class="secondary-button" type="button">Stampa / PDF</button>
+            <button id="copy-command" class="secondary-button" type="button">Copy command</button>
+            <button id="share-result" class="secondary-button" type="button">Share</button>
+            <button id="save-result" class="secondary-button" type="button">Save result</button>
+            <button id="print-result" class="secondary-button" type="button">Print / PDF</button>
           </div>
         </div>
 
         <section id="screen-toolbox" class="screen active" aria-labelledby="page-title">
           <div class="tool-picker-row">
-            <label class="field tool-picker"><span>Strumento</span><select id="tool-select" aria-describedby="tool-description"></select></label>
+            <label class="field tool-picker"><span>Tool</span><select id="tool-select" aria-describedby="tool-description"></select></label>
             <div class="tool-summary"><div id="tool-name" class="tool-name"></div><p id="tool-description" class="lead"></p><p id="tool-example" class="hint"></p></div>
           </div>
 
           <form id="toolbox-form" class="workspace-card">
-            <div class="card-heading"><div><span class="step-badge">01</span><h2>Inserisci i dati</h2></div><span class="required-note">* Campi richiesti</span></div>
+            <div class="card-heading"><div><span class="step-badge">01</span><h2>Enter data</h2></div><span class="required-note">* Required fields</span></div>
             <div id="tool-fields" class="field-grid two"></div>
-            <button class="primary-button" type="submit"><span>Calcola</span><span class="button-arrow">→</span></button>
+            <button class="primary-button" type="submit"><span>Calculate</span><span class="button-arrow">→</span></button>
           </form>
 
           <div id="toolbox-result" class="result-area hidden" aria-live="polite">
-            <div class="result-heading"><div><span class="step-badge success">02</span><h2>Risultato</h2></div><span id="toolbox-context" class="context-label"></span></div>
+            <div class="result-heading"><div><span class="step-badge success">02</span><h2>Result</h2></div><span id="toolbox-context" class="context-label"></span></div>
             <article class="tool-result-card">
-              <span class="metric-label">Risultato principale</span>
+              <span class="metric-label">Primary result</span>
               <strong id="toolbox-primary">—</strong>
+              <div id="matrix-result" class="matrix-result hidden" aria-label="Matrix result"></div>
               <pre id="toolbox-details" class="tool-details"></pre>
               <div id="batch-results" class="batch-results hidden">
-                <table><thead><tr><th>Input</th><th>Risultato</th><th>Stato</th><th>Esattezza</th></tr></thead><tbody id="batch-results-body"></tbody></table>
+                <table><thead><tr><th>Input</th><th>Result</th><th>Status</th><th>Exactness</th></tr></thead><tbody id="batch-results-body"></tbody></table>
               </div>
             </article>
           </div>
         </section>
 
-        <footer class="app-footer"><span>SwissMath Web v0.2 · Core v0.6</span><span>Calcolo locale · Nessun account · MIT</span></footer>
+        <footer class="app-footer"><span>SwissMath Web v0.2 · Core v0.6</span><span>Local computation · No account · MIT</span></footer>
       </main>
     </div>
     <div id="toast" class="toast" role="status" aria-live="polite"></div>

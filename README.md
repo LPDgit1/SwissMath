@@ -87,7 +87,7 @@ outcomes remain distinct.
 - `apps/web` — thin `wasm-bindgen` adapter and browser UI;
 - `apps/cli` — thin native research-workflow CLI;
 - `bench/problems` — repeatable benchmark harnesses;
-- `scripts` — Web build and source-bundle tooling;
+- `scripts`, `tools` — Web build, portable launcher, and source-bundle tooling;
 - `CHANGELOG.md`, `NOT_NOW.md` — release history and explicit scope boundary;
 - `WASM_FEASIBILITY_REPORT_v0.5.md` — technical feasibility evidence;
 - `WEB_IMPLEMENTATION_REPORT_v0.1.md` — Web implementation and deployment report.
@@ -117,16 +117,27 @@ directory or installs tools.
 
 The validated browser bundle is written to `dist/web/`.
 
-To use the local Web application on Windows, double-click
-`Avvia-SwissMath-Web.cmd`. It starts a small HTTP server bound only to
-`127.0.0.1` and opens the default browser. No Python, Node.js, installation, or
-network connection is required at runtime. Close its terminal window, or press
-`Ctrl+C`, to stop it.
+For the simplest local use on Windows, double-click
+`release/SwissMath-Web-Portable.exe`. The executable contains the complete Web
+interface and WASM engine, starts a server bound only to `127.0.0.1`, and opens
+the default browser. It does not require installation, Python, Node.js, a build,
+or a network connection. Keep its small terminal window open while using the
+application and close it when finished.
+
+`Avvia-SwissMath-Web.cmd` selects the portable executable automatically when it
+is present and remains a development fallback for an existing `dist/web`
+bundle.
 
 Alternatively:
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File scripts/serve-web.ps1
+```
+
+Maintainers can regenerate the portable executable after a Web change with:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts/build-web-portable.ps1
 ```
 
 Do not open `dist/web/index.html` directly: browsers block ES modules and WASM

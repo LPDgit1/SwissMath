@@ -120,7 +120,7 @@ try {
   controls.forEach((control) => { control.disabled = false; });
   wasmLoading?.remove();
 } catch (error) {
-  wasmLoading.textContent = 'Il motore matematico locale non è disponibile. Avvia SwissMath con Avvia-SwissMath-Web.cmd dalla cartella principale, senza aprire index.html direttamente.';
+  wasmLoading.textContent = 'Il motore matematico locale non è disponibile. Avvia SwissMath-Web-Portable.exe, senza aprire index.html direttamente.';
   wasmLoading.classList.add('error');
 }
 

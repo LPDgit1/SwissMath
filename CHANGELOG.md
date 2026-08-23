@@ -1,5 +1,20 @@
 # Changelog
 
+## Research Workflow 0.1
+
+- Added a thin native `swissmath` CLI over Core v0.6 with curated scalar
+  commands, compact human output, stable JSON, streaming JSONL, and CSV column
+  preservation.
+- Batch record errors are emitted structurally without stopping later records;
+  invocation errors remain on stderr.
+- Added automatic multiline Web batches, a simple result table, Copy/JSON/CSV
+  export, reproducible CLI commands, and bounded hash-based share links that do
+  not auto-execute.
+- Added CLI process tests, Web workflow smoke coverage, cross-surface parity
+  checks, and startup/batch performance measurements.
+- Kept the Workflow single-threaded, local, configuration-free, and without a
+  server, database, account, telemetry, async runtime, or frontend framework.
+
 ## 0.6.0 — Research Primitives
 
 - Recovered the interrupted v0.6 implementation without replacing the

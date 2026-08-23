@@ -3060,6 +3060,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "swissmath-cli"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "serde_json",
+ "swissmath-core",
+]
+
+[[package]]
 name = "swissmath-core"
 version = "0.6.0"
 dependencies = [

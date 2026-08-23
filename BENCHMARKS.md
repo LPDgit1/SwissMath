@@ -196,3 +196,28 @@ The focused `research_primitives` harness was run locally on Windows x86_64 on
 
 Divisor enumeration materializes the full sorted list and is intentionally
 opt-in. Scalar factorization-derived functions are not benchmarked separately.
+
+## Research Workflow v0.1
+
+One local optimized Windows x86_64 end-to-end CLI run on 2026-08-23 reported:
+
+| Workload | Records | Elapsed | Operations/s |
+| --- | ---: | ---: | ---: |
+| Process startup (`--help`, 20-run average) | 1 | 41.74 ms | — |
+| Scalar prime JSON (20-run average) | 1 | 28.03 ms | — |
+| Prime JSONL | 10 | 47.17 ms | 212 |
+| Prime JSONL | 100 | 26.21 ms | 3,816 |
+| Prime JSONL | 1,000 | 31.14 ms | 32,113 |
+| Prime JSONL | 10,000 | 145.13 ms | 68,902 |
+| Factor 360 JSONL | 10 | 17.68 ms | 566 |
+| Factor 360 JSONL | 100 | 25.92 ms | 3,858 |
+| Factor 360 JSONL | 1,000 | 51.79 ms | 19,309 |
+| Factor 360 JSONL | 10,000 | 122.78 ms | 81,446 |
+
+Small-batch figures are dominated by Windows process and PowerShell pipeline
+startup. JSONL records are processed sequentially and are not retained.
+
+The local production WASM bundle reported approximately 211.2 ms initialization,
+3.5 ms for one browser prime request, 9.6 ms for 100 rows, and 42.9 ms for 1,000
+rows including construction of the simple result table. These browser timings
+are directional and hardware/session dependent.

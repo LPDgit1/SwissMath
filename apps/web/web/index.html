@@ -48,7 +48,16 @@
 
         <div id="result-actions" class="result-actions hidden" aria-live="polite">
           <div class="result-actions-copy"><span class="metric-label">Preflight risultato</span><strong id="result-actions-context">Nessun risultato</strong></div>
-          <div class="result-actions-buttons"><button id="save-result" class="secondary-button" type="button">Salva risultato</button><button id="print-result" class="secondary-button" type="button">Stampa / PDF</button></div>
+          <div class="result-actions-buttons">
+            <button id="copy-result" class="secondary-button" type="button">Copia</button>
+            <button id="copy-json" class="secondary-button" type="button">Copia JSON</button>
+            <button id="download-json" class="secondary-button" type="button">Download JSON</button>
+            <button id="download-csv" class="secondary-button" type="button">Download CSV</button>
+            <button id="copy-command" class="secondary-button" type="button">Copia comando</button>
+            <button id="share-result" class="secondary-button" type="button">Condividi</button>
+            <button id="save-result" class="secondary-button" type="button">Salva risultato</button>
+            <button id="print-result" class="secondary-button" type="button">Stampa / PDF</button>
+          </div>
         </div>
 
         <section id="screen-toolbox" class="screen active" aria-labelledby="page-title">
@@ -69,6 +78,9 @@
               <span class="metric-label">Risultato principale</span>
               <strong id="toolbox-primary">—</strong>
               <pre id="toolbox-details" class="tool-details"></pre>
+              <div id="batch-results" class="batch-results hidden">
+                <table><thead><tr><th>Input</th><th>Risultato</th><th>Stato</th><th>Esattezza</th></tr></thead><tbody id="batch-results-body"></tbody></table>
+              </div>
             </article>
           </div>
         </section>

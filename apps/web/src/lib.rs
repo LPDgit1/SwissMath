@@ -5,13 +5,13 @@ use swissmath_core::{
     Congruence, DecimalIntegerAnalysis, DecimalIntegerAnalysisError, LinearCongruence,
     LinearSolution, LinearSystemSolution, ModCtx, ModularFilter, ModularFilterBuild, ModularSieve,
     Modulus, MultiplicativeOrderResult, Polynomial, PrimalityAssessment, QuadraticError, Rational,
-    RationalMatrix, ResidueError, ResidueSet, analyze_integer_decimal, continued_fraction,
+    RationalMatrix, ResidueError, ResidueSet, Valuation, analyze_integer_decimal, continued_fraction,
     convergents, crt_fold, crt_pair, determinant_bareiss, extended_gcd, factor, find_recurrence,
     finite_differences, format_in_base, guess_sequence, hermite_normal_form, integer_nth_root,
     interpolate, is_prime, jacobi_symbol, lcm, modular_square_roots, multiplicative_order,
-    next_prime, nullspace, parse_decimal, parse_in_base, perfect_power, polynomial_gcd, pslq, rank,
-    rational_reconstruct_bounded, rationalize_decimal, rref, smith_normal_form_invariants, solve,
-    solve_linear_congruence, solve_linear_system,
+    next_prime, nullspace, parse_decimal, parse_in_base, perfect_power, polynomial_gcd,
+    previous_prime, pslq, rank, rational_reconstruct_bounded, rationalize_decimal, rref,
+    smith_normal_form_invariants, solve, solve_linear_congruence, solve_linear_system, valuation,
 };
 use wasm_bindgen::prelude::*;
 
@@ -1073,7 +1073,26 @@ fn run_tool(tool: &str, input: &Value) -> Result<Value, String> {
         "nextprime" => Ok(
             json!({ "result": next_prime(field_u64(input, "n")?).map_err(number_theory_error_message)?.to_string(), "exact": true }),
         ),
-        "factor" | "divisors" | "totient" | "mobius" => {
+        "previousprime" => Ok(json!({
+            "result": previous_prime(field_u64(input, "n")?)
+                .ok_or_else(|| "Non esiste un primo strettamente precedente.".to_owned())?
+                .to_string(),
+            "exact": true
+        })),
+        "valuation" => {
+            let result = valuation(field_u64(input, "n")?, field_u64(input, "p")?)
+                .map_err(number_theory_error_message)?;
+            Ok(match result {
+                Valuation::Finite(exponent) => {
+                    json!({ "result": exponent, "infinite": false, "exact": true })
+                }
+                Valuation::Infinite => {
+                    json!({ "result": "∞", "infinite": true, "exact": true })
+                }
+            })
+        }
+        "factor" | "divisors" | "totient" | "mobius" | "radical" | "squarefree"
+        | "divisor-count" | "divisor-sum" => {
             let factorization =
                 factor(field_u64(input, "n")?).map_err(number_theory_error_message)?;
             let factors = factorization
@@ -1091,6 +1110,18 @@ fn run_tool(tool: &str, input: &Value) -> Result<Value, String> {
                 "mobius" => {
                     Ok(json!({ "result": factorization.mobius().to_string(), "factors": factors }))
                 }
+                "radical" => Ok(
+                    json!({ "result": factorization.radical().to_string(), "factors": factors }),
+                ),
+                "squarefree" => Ok(
+                    json!({ "result": factorization.is_squarefree(), "factors": factors }),
+                ),
+                "divisor-count" => Ok(
+                    json!({ "result": factorization.divisor_count().to_string(), "factors": factors }),
+                ),
+                "divisor-sum" => Ok(
+                    json!({ "result": factorization.divisor_sum().to_string(), "factors": factors }),
+                ),
                 _ => {
                     let summary = factorization
                         .divisor_summary(10_000)
@@ -1404,8 +1435,25 @@ mod tests {
     use super::{
         LinearRowInput, SieveFilterInput, analyze_integer, calculate_crt, calculate_modular,
         calculate_multiplicative_order, calculate_quadratic_symbols, calculate_residues,
-        find_modular_roots, run_sieve, solve_linear, solve_system,
+        find_modular_roots, run_sieve, run_tool, solve_linear, solve_system,
     };
+    use serde_json::json;
+
+    #[test]
+    fn workflow_primitives_use_core_v06_results() {
+        assert_eq!(
+            run_tool("previousprime", &json!({ "n": "100" })).unwrap()["result"],
+            "97"
+        );
+        assert_eq!(
+            run_tool("radical", &json!({ "n": "360" })).unwrap()["result"],
+            "30"
+        );
+        assert_eq!(
+            run_tool("valuation", &json!({ "n": "81", "p": "3" })).unwrap()["result"],
+            4
+        );
+    }
 
     #[test]
     fn modular_command_returns_canonical_exact_strings() {

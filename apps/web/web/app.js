@@ -32,10 +32,16 @@ const catalog = {
     tools: [
       t('isprime', 'Test di primalità u64', 'Fornisce un risultato deterministico nell’intero dominio u64.', 'Prime, Composite oppure Neither', [f('n', 'Intero n', '1000000007')]),
       t('nextprime', 'Primo successivo', 'Trova il minimo primo strettamente maggiore di n.', 'Esempio: dopo 1000 viene 1009', [f('n', 'Intero n', '1000')]),
+      t('previousprime', 'Primo precedente', 'Trova il massimo primo strettamente minore di n.', 'Per n≤2 non esiste un risultato', [f('n', 'Intero n', '1000')]),
       t('factor', 'Fattorizzazione intera', 'Fattorizza un u64 con trial division e Pollard–Brent.', 'Esempio: 360 = 2³·3²·5', [f('n', 'Intero n', '360')]),
       t('divisors', 'Divisori', 'Calcola numero, somma ed eventualmente l’elenco dei divisori.', 'Gli elenchi molto grandi non vengono materializzati', [f('n', 'Intero n', '360')]),
       t('totient', 'Totiente di Eulero', 'Calcola φ(n) riusando una sola fattorizzazione.', 'Esempio: φ(360) = 96', [f('n', 'Intero n', '360')]),
       t('mobius', 'Funzione di Möbius', 'Calcola μ(n) dalla fattorizzazione prima.', 'Valori possibili: −1, 0, 1', [f('n', 'Intero n', '30')]),
+      t('radical', 'Radicale', 'Calcola il prodotto dei divisori primi distinti.', 'Esempio: rad(360) = 30', [f('n', 'Intero n', '360')]),
+      t('squarefree', 'Test squarefree', 'Verifica se nessun quadrato primo divide n.', 'Risultato esatto booleano', [f('n', 'Intero n', '30')]),
+      t('divisor-count', 'Numero dei divisori', 'Calcola τ(n) dalla fattorizzazione.', 'Esempio: τ(360) = 24', [f('n', 'Intero n', '360')]),
+      t('divisor-sum', 'Somma dei divisori', 'Calcola σ(n) esattamente in u128.', 'Esempio: σ(360) = 1170', [f('n', 'Intero n', '360')]),
+      t('valuation', 'Valutazione p-adica', 'Calcola vₚ(n) richiedendo p primo.', 'Per n=0 restituisce ∞', [f('n', 'Intero n', '81'), f('p', 'Primo p', '3')]),
       t('jacobi', 'Simbolo di Jacobi', 'Calcola il simbolo senza fattorizzare il modulo.', 'Il modulo deve essere positivo e dispari', [f('a', 'Valore a', '5'), f('modulus', 'Modulo n', '11')]),
       t('sqrtmod', 'Radici modulari', 'Trova le radici quadrate nei domini esatti supportati dal Core.', 'Esempio: x² ≡ 10 mod 13 → 6, 7', [f('a', 'Valore a', '10'), f('modulus', 'Modulo n', '13')]),
       t('multiplicative-order', 'Ordine moltiplicativo', 'Trova il minimo k>0 con aᵏ≡1 mod n.', 'Richiede gcd(a,n)=1', [f('a', 'Valore a', '2'), f('modulus', 'Modulo n', '9')]),
@@ -83,7 +89,23 @@ const catalog = {
   },
 };
 
+const batchToolIds = new Set([
+  'isprime', 'nextprime', 'previousprime', 'factor', 'divisors', 'totient',
+  'mobius', 'radical', 'squarefree', 'divisor-count', 'divisor-sum', 'integer-analysis',
+]);
+
+const cliCommands = {
+  gcd: ['gcd', 'a', 'b'], xgcd: ['xgcd', 'a', 'b'], invmod: ['inverse', 'a', 'modulus'],
+  isprime: ['prime', 'n'], nextprime: ['next-prime', 'n'], previousprime: ['prev-prime', 'n'],
+  factor: ['factor', 'n'], divisors: ['divisors', 'n'], mobius: ['mobius', 'n'],
+  radical: ['radical', 'n'], squarefree: ['squarefree', 'n'],
+  'divisor-count': ['divisor-count', 'n'], 'divisor-sum': ['divisor-sum', 'n'],
+  sqrtmod: ['sqrtmod', 'a', 'modulus'], 'integer-analysis': ['analyze', 'n'],
+  'linear-congruence': ['congruence', 'a', 'b', 'modulus'],
+};
+
 const wasmLoading = document.querySelector('#wasm-loading');
+const wasmInitStarted = performance.now();
 const controls = [...document.querySelectorAll('button, input, textarea, select')];
 controls.forEach((control) => { control.disabled = true; });
 let wasmReady = false;
@@ -93,6 +115,7 @@ let currentResult = null;
 
 try {
   await init();
+  document.documentElement.dataset.wasmInitMs = (performance.now() - wasmInitStarted).toFixed(3);
   wasmReady = true;
   controls.forEach((control) => { control.disabled = false; });
   wasmLoading?.remove();
@@ -111,6 +134,8 @@ const details = document.querySelector('#toolbox-details');
 const toast = document.querySelector('#toast');
 const resultActions = document.querySelector('#result-actions');
 const resultContext = document.querySelector('#result-actions-context');
+const batchResults = document.querySelector('#batch-results');
+const batchResultsBody = document.querySelector('#batch-results-body');
 
 function showToast(message, error = false) {
   toast.textContent = message;
@@ -144,21 +169,26 @@ function renderTool() {
   document.querySelector('#tool-example').textContent = currentTool.example;
   toolFields.replaceChildren(...currentTool.fields.map((field) => {
     const label = document.createElement('label');
-    label.className = `field${field.type === 'textarea' ? ' wide-field' : ''}`;
+    const multiline = field.type === 'textarea' || (field.name === 'n' && batchToolIds.has(currentTool.id));
+    label.className = `field${multiline ? ' wide-field' : ''}`;
     const caption = document.createElement('span');
     caption.textContent = field.label;
-    const input = document.createElement(field.type === 'textarea' ? 'textarea' : 'input');
+    const input = document.createElement(multiline ? 'textarea' : 'input');
     input.name = field.name;
     input.value = field.value;
     input.required = true;
-    if (field.type === 'textarea') input.rows = 4;
+    if (multiline) input.rows = field.type === 'textarea' ? 4 : 3;
     const help = document.createElement('small');
-    help.textContent = field.help;
+    help.textContent = field.help || (multiline ? 'Un valore oppure più valori, uno per riga.' : '');
     label.append(caption, input, help);
     return label;
   }));
   resultArea.classList.add('hidden');
   resultActions.classList.add('hidden');
+  batchResults.classList.add('hidden');
+  batchResultsBody.replaceChildren();
+  primary.classList.remove('hidden');
+  details.classList.remove('hidden');
   currentResult = null;
 }
 
@@ -184,27 +214,85 @@ function displayValue(value) {
   return JSON.stringify(value, null, 2);
 }
 
+function mainResult(result) {
+  return result.result ?? result.message ?? result.primality ?? result.solution_kind ?? result.survivor_count ?? result.values ?? result;
+}
+
+function exactnessOf(result) {
+  if (result.exactness) return result.exactness;
+  if (result.probable === true) return 'probable';
+  if (result.proof_incomplete === true) return 'proof_incomplete';
+  return result.exact === false ? 'qualified' : 'exact';
+}
+
+function batchInputs(input) {
+  if (!batchToolIds.has(currentTool.id) || typeof input.n !== 'string' || !input.n.includes('\n')) return null;
+  const values = input.n.split(/\r?\n/).map((value) => value.trim()).filter(Boolean);
+  return values.length > 1 ? values : null;
+}
+
+function renderBatch(rows) {
+  batchResultsBody.replaceChildren(...rows.map((row) => {
+    const tr = document.createElement('tr');
+    const values = [row.input, row.result, row.status, row.exactness];
+    values.forEach((value, index) => {
+      const cell = document.createElement('td');
+      cell.textContent = displayValue(value);
+      if (index === 2) cell.className = row.status === 'ok' ? 'status-ok' : 'status-error';
+      tr.append(cell);
+    });
+    return tr;
+  }));
+  primary.classList.add('hidden');
+  details.classList.add('hidden');
+  batchResults.classList.remove('hidden');
+}
+
+function renderScalar(result) {
+  const main = mainResult(result);
+  primary.textContent = displayValue(main);
+  const supporting = Object.fromEntries(Object.entries(result).filter(([key]) => key !== 'result'));
+  details.textContent = Object.keys(supporting).length ? JSON.stringify(supporting, null, 2) : '';
+  primary.classList.remove('hidden');
+  details.classList.remove('hidden');
+  batchResults.classList.add('hidden');
+}
+
 form.addEventListener('submit', (event) => {
   event.preventDefault();
   const input = Object.fromEntries(new FormData(form));
   const started = performance.now();
   try {
-    const result = execute(currentTool, input);
+    const values = batchInputs(input);
+    let records;
+    if (values) {
+      records = values.map((value) => {
+        try {
+          const result = execute(currentTool, { ...input, n: value });
+          return { input: value, result: mainResult(result), details: result, status: 'ok', exactness: exactnessOf(result) };
+        } catch (error) {
+          return { input: value, result: error.message || String(error), details: null, status: 'error', exactness: '—' };
+        }
+      });
+      renderBatch(records);
+    } else {
+      const result = execute(currentTool, input);
+      renderScalar(result);
+      records = [{ input, result: mainResult(result), details: result, status: 'ok', exactness: exactnessOf(result) }];
+    }
     const elapsed = performance.now() - started;
-    const main = result.result ?? result.message ?? result.primality ?? result.solution_kind ?? result.survivor_count ?? result.values ?? result;
-    primary.textContent = displayValue(main);
-    const supporting = Object.fromEntries(Object.entries(result).filter(([key]) => key !== 'result'));
-    details.textContent = Object.keys(supporting).length ? JSON.stringify(supporting, null, 2) : '';
     document.querySelector('#toolbox-context').textContent = `${currentTool.name} · ${formatElapsed(elapsed)}`;
     resultArea.classList.remove('hidden');
     resultContext.textContent = `${currentTool.name} · ${formatElapsed(elapsed)}`;
     resultActions.classList.remove('hidden');
-    currentResult = { title: currentTool.name, elapsed, input, result };
+    currentResult = { title: currentTool.name, tool: currentTool.id, elapsed, input, records };
+    updateActionAvailability();
     showToast(`Operazione completata · tempo: ${formatElapsed(elapsed)}`);
   } catch (error) {
     const elapsed = performance.now() - started;
     resultArea.classList.add('hidden');
     resultActions.classList.add('hidden');
+    batchResults.classList.add('hidden');
     showToast(`${error.message || error} · tempo: ${formatElapsed(elapsed)}`, true);
   }
 });
@@ -215,16 +303,105 @@ toolSelect.addEventListener('change', () => {
 });
 categoryButtons.forEach((button) => button.addEventListener('click', () => selectCategory(button.dataset.category)));
 
-document.querySelector('#save-result').addEventListener('click', () => {
-  if (!currentResult) return;
-  const text = `SwissMath Web v0.2 · Core v0.6\n${currentResult.title}\nTempo: ${formatElapsed(currentResult.elapsed)}\n\nInput\n${JSON.stringify(currentResult.input, null, 2)}\n\nRisultato\n${JSON.stringify(currentResult.result, null, 2)}\n`;
-  const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
+function exportPayload() {
+  return {
+    application: 'SwissMath Web', web_version: '0.2', core_version: '0.6',
+    operation: currentResult.tool, elapsed_ms: currentResult.elapsed, records: currentResult.records,
+  };
+}
+
+function plainResult() {
+  return currentResult.records.map((record) => `${displayValue(record.input)}\t${displayValue(record.result)}\t${record.status}\t${record.exactness}`).join('\n');
+}
+
+function csvEscape(value) {
+  const text = typeof value === 'string' ? value : JSON.stringify(value);
+  return /[",\r\n]/.test(text) ? `"${text.replaceAll('"', '""')}"` : text;
+}
+
+function resultCsv() {
+  return ['input,result,status,exactness', ...currentResult.records.map((record) => [record.input, record.result, record.status, record.exactness].map(csvEscape).join(','))].join('\n');
+}
+
+function download(name, content, type) {
+  const blob = new Blob([content], { type });
   const url = URL.createObjectURL(blob);
   const link = document.createElement('a');
   link.href = url;
-  link.download = `swissmath-${currentTool.id}-${new Date().toISOString().slice(0, 19).replace(/[T:]/g, '-')}.txt`;
+  link.download = name;
   link.click();
   setTimeout(() => URL.revokeObjectURL(url), 0);
+}
+
+function shellValue(value) {
+  return /^[A-Za-z0-9_.+\-]+$/.test(value) ? value : JSON.stringify(value);
+}
+
+function cliCommand() {
+  const mapping = cliCommands[currentTool.id];
+  if (!mapping || currentResult.records.length !== 1) return null;
+  const [, ...fields] = mapping;
+  return ['swissmath', mapping[0], ...fields.map((field) => shellValue(currentResult.input[field]))].join(' ');
+}
+
+function shareHash() {
+  if (!currentResult || currentResult.records.length !== 1) return null;
+  const parameters = new URLSearchParams(currentResult.input);
+  const hash = `#${encodeURIComponent(currentTool.id)}?${parameters}`;
+  return hash.length <= 1500 ? hash : null;
+}
+
+function updateActionAvailability() {
+  document.querySelector('#copy-command').disabled = !cliCommand();
+  document.querySelector('#share-result').disabled = !shareHash();
+}
+
+document.querySelector('#copy-result').addEventListener('click', async () => {
+  if (!currentResult) return;
+  await navigator.clipboard.writeText(plainResult());
+  showToast('Risultato copiato.');
+});
+
+document.querySelector('#copy-json').addEventListener('click', async () => {
+  if (!currentResult) return;
+  await navigator.clipboard.writeText(JSON.stringify(exportPayload(), null, 2));
+  showToast('JSON copiato.');
+});
+
+document.querySelector('#download-json').addEventListener('click', () => {
+  if (!currentResult) return;
+  download(`swissmath-${currentTool.id}.json`, JSON.stringify(exportPayload(), null, 2), 'application/json');
+  showToast('JSON pronto per il download.');
+});
+
+document.querySelector('#download-csv').addEventListener('click', () => {
+  if (!currentResult) return;
+  download(`swissmath-${currentTool.id}.csv`, resultCsv(), 'text/csv;charset=utf-8');
+  showToast('CSV pronto per il download.');
+});
+
+document.querySelector('#copy-command').addEventListener('click', async () => {
+  const command = cliCommand();
+  if (!command) return;
+  await navigator.clipboard.writeText(command);
+  showToast('Comando CLI copiato.');
+});
+
+document.querySelector('#share-result').addEventListener('click', async () => {
+  const hash = shareHash();
+  if (!hash) {
+    showToast('Il batch è troppo grande per un link: usa JSON o CSV.', true);
+    return;
+  }
+  window.location.hash = hash;
+  await navigator.clipboard.writeText(window.location.href);
+  showToast('Link copiato. Il calcolo non verrà eseguito automaticamente.');
+});
+
+document.querySelector('#save-result').addEventListener('click', () => {
+  if (!currentResult) return;
+  const text = `SwissMath Web v0.2 · Core v0.6\n${currentResult.title}\nTempo: ${formatElapsed(currentResult.elapsed)}\n\n${plainResult()}\n`;
+  download(`swissmath-${currentTool.id}.txt`, text, 'text/plain;charset=utf-8');
   showToast('Risultato salvato.');
 });
 
@@ -236,4 +413,30 @@ document.querySelector('#print-result').addEventListener('click', () => {
   window.print();
 });
 
-selectCategory(currentCategory);
+function restoreShareState() {
+  const raw = window.location.hash.slice(1);
+  if (!raw) return false;
+  const [encodedTool, query = ''] = raw.split('?');
+  let toolId;
+  try {
+    toolId = decodeURIComponent(encodedTool);
+  } catch {
+    return false;
+  }
+  const category = Object.keys(catalog).find((key) => catalog[key].tools.some((tool) => tool.id === toolId));
+  if (!category) return false;
+  selectCategory(category);
+  currentTool = catalog[category].tools.find((tool) => tool.id === toolId);
+  toolSelect.value = toolId;
+  renderTool();
+  const parameters = new URLSearchParams(query);
+  currentTool.fields.forEach((field) => {
+    const value = parameters.get(field.name);
+    const control = form.elements.namedItem(field.name);
+    if (value !== null && control) control.value = value;
+  });
+  showToast('Input ripristinato dal link. Premi Calcola per eseguire.');
+  return true;
+}
+
+if (!restoreShareState()) selectCategory(currentCategory);

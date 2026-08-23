@@ -2,9 +2,12 @@
 
 SwissMath is a lightweight computational mathematics toolkit written in Rust,
 focused on fast exact modular arithmetic and computational number theory, with
-desktop and WebAssembly frontends.
+desktop, command-line, and WebAssembly interfaces.
 
 By Luca Pezzullo, 2026
+
+Current source status: SwissMath Core v0.6, Web v0.2, and Research Workflow
+v0.1. The public deployment may lag the validated local source release.
 
 ## Try it online
 
@@ -40,12 +43,23 @@ Primality labels are deliberately precise:
                     composite / probable prime
 ```
 
+## Why SwissMath?
+
+- **Web** provides zero-install interactive calculations in the browser.
+- **CLI** provides fast automation, streaming batch work, and JSON/JSONL/CSV
+  interoperability.
+- **Desktop** provides a local graphical Windows application.
+- Every surface calls the same Rust Core and preserves explicit exact,
+  probable, and proof-incomplete semantics.
+- Calculations require no account, API key, server, telemetry, or network.
+
 ## Applications
 
 - **Desktop** — offline Tauri 2 GUI for Windows.
 - **Web** — Rust/WASM client-side application for modern browsers.
+- **CLI** — small native binary for scripts, stdin/stdout, JSONL, and CSV.
 
-Both frontends reuse the same `swissmath-core` implementation.
+All surfaces reuse the same `swissmath-core` implementation.
 
 ### Core v0.6 reconstruction semantics
 
@@ -59,11 +73,11 @@ outcomes remain distinct.
 
 ```text
                   swissmath-core
-                  /            \
-                 ↓              ↓
-           Tauri adapter    WASM adapter
-                 ↓              ↓
-             Desktop           Browser
+                  /       |        \
+                 ↓        ↓         ↓
+             Desktop     CLI       WASM
+                                     ↓
+                                   Browser
 ```
 
 ## Project layout
@@ -71,6 +85,7 @@ outcomes remain distinct.
 - `crates/core` — the reusable mathematical library, tests, and benchmarks;
 - `apps/desktop` — Tauri GUI and desktop adapter;
 - `apps/web` — thin `wasm-bindgen` adapter and browser UI;
+- `apps/cli` — thin native research-workflow CLI;
 - `bench/problems` — repeatable benchmark harnesses;
 - `scripts` — Web build and source-bundle tooling;
 - `CHANGELOG.md`, `NOT_NOW.md` — release history and explicit scope boundary;
@@ -102,6 +117,46 @@ directory or installs tools.
 
 The validated browser bundle is written to `dist/web/`.
 
+## Build and use the CLI
+
+```powershell
+cargo build -p swissmath-cli --release
+target\release\swissmath.exe prime 1000000007
+target\release\swissmath.exe factor 360 --json
+```
+
+Streaming PowerShell example:
+
+```powershell
+Get-Content numbers.txt | target\release\swissmath.exe prime --jsonl
+```
+
+Equivalent Unix example:
+
+```sh
+cat numbers.txt | ./target/release/swissmath prime --jsonl
+```
+
+CSV preserves existing columns and appends stable SwissMath result columns:
+
+```powershell
+target\release\swissmath.exe prime --input numbers.csv --column n --output results.csv
+```
+
+A Python package is not required; subprocess and JSONL provide direct
+interoperability:
+
+```python
+import json, subprocess
+
+process = subprocess.Popen(
+    ["swissmath", "prime", "--jsonl"],
+    stdin=subprocess.PIPE, stdout=subprocess.PIPE, text=True,
+)
+stdout, _ = process.communicate("97\n99\n101\n")
+records = [json.loads(line) for line in stdout.splitlines()]
+```
+
 ## Build the desktop application
 
 With Rust and `cargo-tauri` available:
@@ -121,14 +176,16 @@ database, telemetry, remote font, or remote-service dependency.
 cargo fmt --all --check
 cargo test --workspace
 cargo clippy --workspace --all-targets -- -D warnings
+cargo test -p swissmath-cli
 cargo fmt --manifest-path apps/web/Cargo.toml --all --check
 cargo test --manifest-path apps/web/Cargo.toml
 cargo clippy --manifest-path apps/web/Cargo.toml --all-targets -- -D warnings
 ```
 
-The Web adapter keeps mathematical logic in `swissmath-core`; its JSON/WASM
-entrypoints are only a browser transport layer. The GUI also reports elapsed
-calculation time and supports local result saving and print/PDF output.
+The CLI and Web adapter keep mathematical logic in `swissmath-core`. The Web
+GUI reports elapsed time, accepts newline-separated scalar batches, exports
+JSON/CSV, copies reproducible CLI commands, creates small hash-based share
+links, and retains local result saving and print/PDF output.
 
 ## Source bundles
 

@@ -1,21 +1,22 @@
-use num_bigint::BigInt;
+use num_bigint::{BigInt, BigUint};
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use serde_json::{Value, json};
 use swissmath_core::{
     CombinatoricsError, Congruence, DecimalIntegerAnalysis, DecimalIntegerAnalysisError,
     DiscreteLogResult, FpLinearSystemSolution, FpMatrix, FpPolynomial, LinearCongruence,
     LinearSolution, LinearSystemSolution, ModCtx, ModularFilter, ModularFilterBuild, ModularSieve,
-    Modulus, MultiplicativeOrderResult, Polynomial, PrimalityAssessment, PrimeField,
-    QuadraticError, Rational, RationalMatrix, ResidueError, ResidueSet, Valuation,
-    analyze_integer_decimal, binomial_mod_prime, binomial_valuation, continued_fraction,
-    convergents, crt_fold, crt_pair, determinant_bareiss, discrete_log, extended_gcd, factor,
-    factorial_mod_prime, factorial_valuation, find_recurrence, finite_differences, format_in_base,
-    guess_sequence, hermite_normal_form, infer_recurrence_nth_mod_prime, integer_nth_root,
-    interpolate, is_prime, is_primitive_root, jacobi_symbol, lcm, linear_recurrence_nth_mod_prime,
-    modular_square_roots, multiplicative_order, next_prime, nullspace, parse_decimal,
-    parse_in_base, perfect_power, polynomial_gcd, previous_prime, primitive_root, pslq, rank,
-    rational_reconstruct_bounded, rationalize_decimal, rref, smith_normal_form_invariants, solve,
-    solve_linear_congruence, solve_linear_system, valuation,
+    Modulus, MultimodularAccumulator, MultimodularError, MultiplicativeOrderResult, Polynomial,
+    PrimalityAssessment, PrimeField, QuadraticError, Rational, RationalMatrix, ResidueError,
+    ResidueSet, Valuation, analyze_integer_decimal, binomial_mod_prime, binomial_valuation,
+    continued_fraction, convergents, crt_fold, crt_pair, determinant_bareiss, discrete_log,
+    extended_gcd, factor, factorial_mod_prime, factorial_valuation, find_recurrence,
+    finite_differences, format_in_base, guess_sequence, hermite_normal_form,
+    infer_recurrence_nth_mod_prime, integer_nth_root, interpolate, is_prime, is_primitive_root,
+    jacobi_symbol, lcm, linear_recurrence_nth_mod_prime, modular_square_roots,
+    multiplicative_order, next_prime, nullspace, parse_decimal, parse_in_base, perfect_power,
+    polynomial_gcd, previous_prime, primitive_root, pslq, rank, rational_reconstruct_bounded,
+    rationalize_decimal, rref, smith_normal_form_invariants, solve, solve_linear_congruence,
+    solve_linear_system, valuation,
 };
 use wasm_bindgen::prelude::*;
 
@@ -961,6 +962,412 @@ fn parse_i128_list(value: &str) -> Result<Vec<i128>, String> {
     }
 }
 
+#[derive(Clone, Copy)]
+enum MultimodularShape {
+    Scalar,
+    Vector,
+    Matrix,
+}
+
+#[derive(Deserialize)]
+struct JsonResidueBlock {
+    modulus: String,
+    shape: Vec<usize>,
+    values: Vec<String>,
+}
+
+fn optional_field<'a>(input: &'a Value, name: &str) -> Option<&'a str> {
+    input
+        .get(name)
+        .and_then(Value::as_str)
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+}
+
+fn parse_biguint_field(input: &Value, name: &str) -> Result<Option<BigUint>, String> {
+    optional_field(input, name)
+        .map(|value| {
+            BigUint::parse_bytes(value.as_bytes(), 10)
+                .ok_or_else(|| format!("{name}: use a non-negative decimal integer."))
+        })
+        .transpose()
+}
+
+fn multimodular_shape(input: &Value) -> Result<MultimodularShape, String> {
+    match field(input, "input_type")? {
+        "scalar" => Ok(MultimodularShape::Scalar),
+        "vector" => Ok(MultimodularShape::Vector),
+        "matrix" => Ok(MultimodularShape::Matrix),
+        other => Err(format!("Unrecognized multimodular input type: {other}.")),
+    }
+}
+
+fn parse_multimodular_input(
+    text: &str,
+    selected_shape: MultimodularShape,
+) -> Result<(MultimodularAccumulator, Vec<usize>), String> {
+    let first = text
+        .lines()
+        .find(|line| !line.trim().is_empty())
+        .ok_or_else(|| "Multimodular input is empty.".to_owned())?;
+    if first.trim_start().starts_with('{') {
+        parse_multimodular_jsonl(text, selected_shape)
+    } else {
+        parse_multimodular_human(text, selected_shape)
+    }
+}
+
+fn parse_multimodular_jsonl(
+    text: &str,
+    selected_shape: MultimodularShape,
+) -> Result<(MultimodularAccumulator, Vec<usize>), String> {
+    let mut accumulator = MultimodularAccumulator::new();
+    let mut common_shape = None;
+    for (line_index, line) in text.lines().enumerate() {
+        if line.trim().is_empty() {
+            continue;
+        }
+        let block: JsonResidueBlock = serde_json::from_str(line)
+            .map_err(|error| format!("JSONL line {}: {error}", line_index + 1))?;
+        let shape = validate_multimodular_shape(selected_shape, &block.shape, block.values.len())?;
+        ensure_multimodular_shape(&mut common_shape, &shape)?;
+        let prime = block.modulus.parse::<u64>().map_err(|_| {
+            format!(
+                "JSONL line {}: modulus must be a u64 prime.",
+                line_index + 1
+            )
+        })?;
+        let field = PrimeField::new(prime).map_err(|_| {
+            format!(
+                "JSONL line {}: modulus must be a u64 prime.",
+                line_index + 1
+            )
+        })?;
+        let residues = block
+            .values
+            .iter()
+            .map(|value| {
+                value
+                    .parse::<i128>()
+                    .map(|value| field.normalize(value))
+                    .map_err(|_| {
+                        format!(
+                            "JSONL line {}: invalid signed residue {value}.",
+                            line_index + 1
+                        )
+                    })
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+        accumulator
+            .push_prime_residues(field, &residues)
+            .map_err(format_multimodular_error)?;
+    }
+    Ok((
+        accumulator,
+        common_shape.ok_or_else(|| "Multimodular input is empty.".to_owned())?,
+    ))
+}
+
+fn parse_multimodular_human(
+    text: &str,
+    selected_shape: MultimodularShape,
+) -> Result<(MultimodularAccumulator, Vec<usize>), String> {
+    let mut accumulator = MultimodularAccumulator::new();
+    let mut common_shape = None;
+    let mut current_prime = None;
+    let mut rows = Vec::<Vec<i128>>::new();
+    for (line_index, line) in text.lines().enumerate() {
+        let trimmed = line.trim();
+        if trimmed.is_empty() {
+            continue;
+        }
+        let mut parts = trimmed.split_whitespace();
+        if parts.next() == Some("mod") {
+            let prime = parts
+                .next()
+                .ok_or_else(|| format!("Line {}: missing prime after mod.", line_index + 1))?
+                .parse::<u64>()
+                .map_err(|_| format!("Line {}: modulus must be a u64 prime.", line_index + 1))?;
+            if parts.next().is_some() {
+                return Err(format!(
+                    "Line {}: a mod header has exactly one prime.",
+                    line_index + 1
+                ));
+            }
+            if let Some(previous) = current_prime.replace(prime) {
+                push_multimodular_human_block(
+                    &mut accumulator,
+                    &mut common_shape,
+                    selected_shape,
+                    previous,
+                    std::mem::take(&mut rows),
+                )?;
+            }
+        } else {
+            if current_prime.is_none() {
+                return Err(format!(
+                    "Line {}: expected a 'mod <prime>' header.",
+                    line_index + 1
+                ));
+            }
+            rows.push(parse_i128_list(trimmed)?);
+        }
+    }
+    let prime = current_prime.ok_or_else(|| "No 'mod <prime>' block found.".to_owned())?;
+    push_multimodular_human_block(
+        &mut accumulator,
+        &mut common_shape,
+        selected_shape,
+        prime,
+        rows,
+    )?;
+    Ok((
+        accumulator,
+        common_shape.ok_or_else(|| "No residue values found.".to_owned())?,
+    ))
+}
+
+fn push_multimodular_human_block(
+    accumulator: &mut MultimodularAccumulator,
+    common_shape: &mut Option<Vec<usize>>,
+    selected_shape: MultimodularShape,
+    prime: u64,
+    rows: Vec<Vec<i128>>,
+) -> Result<(), String> {
+    if rows.is_empty() || rows.iter().any(Vec::is_empty) {
+        return Err(format!("mod {prime}: residue block is empty."));
+    }
+    let shape = match selected_shape {
+        MultimodularShape::Scalar if rows.len() == 1 && rows[0].len() == 1 => vec![1],
+        MultimodularShape::Scalar => {
+            return Err(format!(
+                "mod {prime}: scalar input requires exactly one value."
+            ));
+        }
+        MultimodularShape::Vector => vec![rows.iter().map(Vec::len).sum()],
+        MultimodularShape::Matrix => {
+            let columns = rows[0].len();
+            if rows.iter().any(|row| row.len() != columns) {
+                return Err(format!("mod {prime}: matrix rows must be rectangular."));
+            }
+            vec![rows.len(), columns]
+        }
+    };
+    ensure_multimodular_shape(common_shape, &shape)?;
+    let field =
+        PrimeField::new(prime).map_err(|_| format!("mod {prime}: modulus must be a u64 prime."))?;
+    let residues = rows
+        .into_iter()
+        .flatten()
+        .map(|value| field.normalize(value))
+        .collect::<Vec<_>>();
+    accumulator
+        .push_prime_residues(field, &residues)
+        .map_err(format_multimodular_error)
+}
+
+fn validate_multimodular_shape(
+    selected_shape: MultimodularShape,
+    shape: &[usize],
+    value_count: usize,
+) -> Result<Vec<usize>, String> {
+    let canonical = match selected_shape {
+        MultimodularShape::Scalar if shape.is_empty() || shape == [1] => vec![1],
+        MultimodularShape::Vector if shape.len() == 1 && shape[0] > 0 => shape.to_vec(),
+        MultimodularShape::Matrix if shape.len() == 2 && shape.iter().all(|size| *size > 0) => {
+            shape.to_vec()
+        }
+        _ => return Err("JSONL shape does not match the selected input type.".to_owned()),
+    };
+    let expected = canonical
+        .iter()
+        .try_fold(1_usize, |product, size| product.checked_mul(*size))
+        .ok_or_else(|| "JSONL shape is too large.".to_owned())?;
+    if expected != value_count {
+        return Err(format!(
+            "JSONL shape expects {expected} values but received {value_count}."
+        ));
+    }
+    Ok(canonical)
+}
+
+fn ensure_multimodular_shape(
+    common: &mut Option<Vec<usize>>,
+    shape: &[usize],
+) -> Result<(), String> {
+    if let Some(expected) = common {
+        if expected != shape {
+            return Err(format!(
+                "Residue block shape mismatch: expected {expected:?}, received {shape:?}."
+            ));
+        }
+    } else {
+        *common = Some(shape.to_vec());
+    }
+    Ok(())
+}
+
+fn format_multimodular_error(error: MultimodularError) -> String {
+    match error {
+        MultimodularError::InsufficientModulus => {
+            "The combined modulus is insufficient for the requested uniqueness bound.".to_owned()
+        }
+        MultimodularError::CoordinateReconstructionFailed { index } => {
+            format!("No valid reconstruction exists at coordinate {index}.")
+        }
+        MultimodularError::CoordinateVerificationFailed { index } => {
+            format!("Internal congruence verification failed at coordinate {index}.")
+        }
+        other => format!("Multimodular reconstruction failed: {other:?}."),
+    }
+}
+
+fn shaped_values(values: &[String], shape: &[usize]) -> Value {
+    if shape.len() == 2 {
+        json!(
+            values
+                .chunks(shape[1])
+                .map(|row| row.to_vec())
+                .collect::<Vec<_>>()
+        )
+    } else if shape == [1] {
+        json!(values[0])
+    } else {
+        json!(values)
+    }
+}
+
+fn preview_values(values: &[String], shape: &[usize]) -> (Value, bool) {
+    const MAX_PREVIEW_VALUES: usize = 200;
+    let truncated = values.len() > MAX_PREVIEW_VALUES;
+    if shape.len() == 2 {
+        let columns = shape[1];
+        let rows = if truncated {
+            (MAX_PREVIEW_VALUES / columns).clamp(1, 10)
+        } else {
+            shape[0]
+        };
+        (
+            json!(
+                values
+                    .chunks(columns)
+                    .take(rows)
+                    .map(|row| row.to_vec())
+                    .collect::<Vec<_>>()
+            ),
+            truncated,
+        )
+    } else if shape == [1] {
+        (json!(values[0]), false)
+    } else {
+        let shown = if truncated { 20 } else { values.len() };
+        (
+            json!(values.iter().take(shown).cloned().collect::<Vec<_>>()),
+            truncated,
+        )
+    }
+}
+
+fn multimodular_json(input: &Value) -> Result<Value, String> {
+    let selected_shape = multimodular_shape(input)?;
+    let (accumulator, shape) = parse_multimodular_input(field(input, "data")?, selected_shape)?;
+    let number_of_moduli = accumulator.prime_count();
+    let combined_modulus = accumulator.combined_modulus().to_string();
+    let combined_modulus_bits = accumulator.combined_modulus_bits();
+    let reconstruction = field(input, "reconstruction")?;
+    let (mode, exactness, bounds, values) = match reconstruction {
+        "crt" => (
+            "crt",
+            "exact_residue_modulo_combined_modulus",
+            Value::Null,
+            accumulator
+                .values()
+                .iter()
+                .map(ToString::to_string)
+                .collect::<Vec<_>>(),
+        ),
+        "integer" => {
+            if let Some(max_abs) = parse_biguint_field(input, "max_abs")? {
+                (
+                    "integer_bounded",
+                    "unique_within_supplied_bound",
+                    json!({ "max_abs": max_abs.to_string() }),
+                    accumulator
+                        .reconstruct_integers_bounded(&max_abs)
+                        .map_err(format_multimodular_error)?
+                        .iter()
+                        .map(ToString::to_string)
+                        .collect(),
+                )
+            } else {
+                (
+                    "integer_centered",
+                    "centered_representative_modulo_combined_modulus",
+                    Value::Null,
+                    accumulator
+                        .centered_representatives()
+                        .map_err(format_multimodular_error)?
+                        .iter()
+                        .map(ToString::to_string)
+                        .collect(),
+                )
+            }
+        }
+        "rational" => {
+            let numerator = parse_biguint_field(input, "max_numerator")?;
+            let denominator = parse_biguint_field(input, "max_denominator")?;
+            match (numerator, denominator) {
+                (None, None) => (
+                    "rational",
+                    "unique_rational_within_standard_bound",
+                    Value::Null,
+                    accumulator
+                        .reconstruct_rationals()
+                        .map_err(format_multimodular_error)?
+                        .iter()
+                        .map(|value| format!("{}/{}", value.numerator, value.denominator))
+                        .collect(),
+                ),
+                (Some(max_numerator_abs), Some(max_denominator)) => (
+                    "rational_bounded",
+                    "unique_rational_within_supplied_bounds",
+                    json!({ "max_numerator_abs": max_numerator_abs.to_string(), "max_denominator": max_denominator.to_string() }),
+                    accumulator
+                        .reconstruct_rationals_bounded(&max_numerator_abs, &max_denominator)
+                        .map_err(format_multimodular_error)?
+                        .iter()
+                        .map(|value| format!("{}/{}", value.numerator, value.denominator))
+                        .collect(),
+                ),
+                _ => return Err("Rational bounds must be both empty or both supplied.".to_owned()),
+            }
+        }
+        other => return Err(format!("Unrecognized reconstruction mode: {other}.")),
+    };
+    let full_values = shaped_values(&values, &shape);
+    let (preview, preview_truncated) = preview_values(&values, &shape);
+    let result = if shape == [1] {
+        full_values.clone()
+    } else {
+        json!(format!("{} values reconstructed", values.len()))
+    };
+    Ok(json!({
+        "result": result,
+        "status": "ok",
+        "shape": shape,
+        "number_of_moduli": number_of_moduli,
+        "combined_modulus": combined_modulus,
+        "combined_modulus_bits": combined_modulus_bits,
+        "reconstruction_mode": mode,
+        "exactness": exactness,
+        "bounds": bounds,
+        "values": full_values,
+        "preview": preview,
+        "value_count": values.len(),
+        "preview_truncated": preview_truncated,
+    }))
+}
+
 fn parse_float_list(value: &str) -> Result<Vec<f64>, String> {
     let values = value
         .split(|character: char| character == ',' || character == ';' || character.is_whitespace())
@@ -1004,6 +1411,7 @@ fn rational_rows_json(rows: &[Vec<Rational>]) -> Value {
 
 fn run_tool(tool: &str, input: &Value) -> Result<Value, String> {
     match tool {
+        "multimodular-reconstruction" => multimodular_json(input),
         "modular-combinatorics" => {
             let operation = field(input, "operation")?;
             let field_context = input_prime_field(input)?;
@@ -1021,12 +1429,20 @@ fn run_tool(tool: &str, input: &Value) -> Result<Value, String> {
                     let k = field_u64(input, "k")?;
                     let value = binomial_valuation(n, k, field_context)
                         .map_err(|error| format!("Binomial valuation failed: {error:?}."))?;
-                    Ok(json!({
-                        "result": value.to_string(), "valuation": value.to_string(),
-                        "n": n.to_string(), "k": k.to_string(),
-                        "prime": field_context.modulus().to_string(),
-                        "method": "Kummer", "exactness": "exact"
-                    }))
+                    match value {
+                        Valuation::Finite(value) => Ok(json!({
+                            "result": value.to_string(), "valuation": value.to_string(),
+                            "n": n.to_string(), "k": k.to_string(),
+                            "prime": field_context.modulus().to_string(),
+                            "method": "Kummer", "exactness": "exact"
+                        })),
+                        Valuation::Infinite => Ok(json!({
+                            "result": "∞", "valuation": "infinite", "infinite": true,
+                            "n": n.to_string(), "k": k.to_string(),
+                            "prime": field_context.modulus().to_string(),
+                            "method": "Kummer", "exactness": "exact"
+                        })),
+                    }
                 }
                 "factorial-mod" => combinatorics_modular_json(
                     factorial_mod_prime(n, field_context),
@@ -1936,6 +2352,86 @@ mod tests {
         .unwrap();
         assert_eq!(limited["status"], "computation_limit_reached");
         assert_eq!(limited["exactness"], "bounded_incomplete");
+    }
+
+    #[test]
+    fn multimodular_web_adapter_covers_scalar_vector_and_matrix_modes() {
+        let scalar = run_tool(
+            "multimodular-reconstruction",
+            &json!({
+                "input_type": "scalar", "reconstruction": "crt",
+                "data": "mod 3\n2\nmod 5\n3"
+            }),
+        )
+        .unwrap();
+        assert_eq!(scalar["values"], "8");
+        assert_eq!(scalar["combined_modulus"], "15");
+
+        let vector = run_tool(
+            "multimodular-reconstruction",
+            &json!({
+                "input_type": "vector", "reconstruction": "integer", "max_abs": "10",
+                "data": "mod 101\n100 2 3\nmod 103\n102 2 3"
+            }),
+        )
+        .unwrap();
+        assert_eq!(vector["values"], json!(["-1", "2", "3"]));
+        assert_eq!(vector["exactness"], "unique_within_supplied_bound");
+
+        let matrix = run_tool(
+            "multimodular-reconstruction",
+            &json!({
+                "input_type": "matrix", "reconstruction": "rational",
+                "max_numerator": "5", "max_denominator": "7",
+                "data": "mod 101\n51 33\n0 44\nmod 103\n52 68\n0 89"
+            }),
+        )
+        .unwrap();
+        assert_eq!(matrix["values"], json!([["1/2", "-2/3"], ["0/1", "5/7"]]));
+        assert_eq!(matrix["shape"], json!([2, 2]));
+    }
+
+    #[test]
+    fn multimodular_web_adapter_accepts_jsonl_and_limits_preview_only() {
+        let values = (0..250).map(|value| value.to_string()).collect::<Vec<_>>();
+        let data = [101_u64, 103]
+            .iter()
+            .map(|prime| {
+                json!({ "modulus": prime.to_string(), "shape": [250], "values": values })
+                    .to_string()
+            })
+            .collect::<Vec<_>>()
+            .join("\n");
+        let result = run_tool(
+            "multimodular-reconstruction",
+            &json!({ "input_type": "vector", "reconstruction": "crt", "data": data }),
+        )
+        .unwrap();
+        assert_eq!(result["value_count"], 250);
+        assert_eq!(result["values"].as_array().unwrap().len(), 250);
+        assert_eq!(result["preview"].as_array().unwrap().len(), 20);
+        assert_eq!(result["preview_truncated"], true);
+    }
+
+    #[test]
+    fn multimodular_web_adapter_rejects_mismatched_shapes_and_partial_bounds() {
+        let mismatch = run_tool(
+            "multimodular-reconstruction",
+            &json!({
+                "input_type": "matrix", "reconstruction": "crt",
+                "data": "mod 101\n1 2\n3 4\nmod 103\n1 2 3\n4 5 6"
+            }),
+        );
+        assert!(mismatch.unwrap_err().contains("shape mismatch"));
+
+        let partial = run_tool(
+            "multimodular-reconstruction",
+            &json!({
+                "input_type": "scalar", "reconstruction": "rational",
+                "max_numerator": "5", "data": "mod 101\n51\nmod 103\n52"
+            }),
+        );
+        assert!(partial.unwrap_err().contains("both empty or both supplied"));
     }
 
     #[test]

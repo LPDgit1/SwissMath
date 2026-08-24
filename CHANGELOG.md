@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.10.0 — Multimodular Exact Reconstruction
+
+- Added a streaming `BigUint` incremental CRT accumulator for scalar, vector,
+  and matrix-shaped residue blocks over distinct `u64` prime fields.
+- Added centered representatives plus verified bounded integer and
+  arbitrary-size rational reconstruction with exact uniqueness checks.
+- Added human-block and JSONL input, complete JSON/JSONL/CSV output, CLI v0.5,
+  Web v0.6 local-file UX, bounded previews, parity tests, and benchmarks.
+- Recalibrated the modular-combinatorics product limit from 1,000,000 to
+  100,000,000 production steps using native and browser/WASM measurements.
+- Normalized `k > n` binomial valuation to the existing infinite-valuation
+  result because `C(n,k)=0` in that domain.
+
 ## 0.9.0 — Efficient Modular Combinatorics
 
 - Reused one `p-1` factorization throughout discrete logarithms, removed

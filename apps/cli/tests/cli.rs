@@ -72,7 +72,7 @@ fn reconstruction_and_json_are_structured() {
     assert_eq!(value["result"]["numerator"], "7");
     assert_eq!(value["result"]["denominator"], "1");
     assert_eq!(value["exactness"], "exact");
-    assert_eq!(value["core_version"], "0.9");
+    assert_eq!(value["core_version"], "0.10");
     assert!(value["elapsed_ms"].is_number());
 }
 
@@ -244,4 +244,148 @@ fn combinatorics_family_covers_four_operations_and_bounded_status() {
     assert_eq!(value["status"], "computation_limit_reached");
     assert_eq!(value["result"]["status"], "computation_limit_reached");
     assert_eq!(value["exactness"], "bounded_incomplete");
+
+    let infinite = run(
+        &["comb", "binomial-valuation", "5", "3", "4", "--json"],
+        None,
+    );
+    let value: Value = serde_json::from_slice(&infinite.stdout).unwrap();
+    assert_eq!(value["result"]["valuation"], "infinite");
+    assert_eq!(value["result"]["infinite"], true);
+}
+
+#[test]
+fn multimodular_human_matrix_reconstructs_known_signed_integers() {
+    let input = "mod 101\n96 0\n42 91\n\nmod 103\n98 0\n42 73\n\nmod 107\n102 0\n42 37\n";
+    let output = run(
+        &[
+            "reconstruct",
+            "multi",
+            "integer",
+            "matrix",
+            "1000",
+            "--json",
+        ],
+        Some(input),
+    );
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let value: Value = serde_json::from_slice(&output.stdout).unwrap();
+    assert_eq!(value["status"], "ok");
+    assert_eq!(value["shape"], serde_json::json!([2, 2]));
+    assert_eq!(
+        value["values"],
+        serde_json::json!([["-5", "0"], ["42", "1000"]])
+    );
+    assert_eq!(value["number_of_moduli"], 3);
+    assert_eq!(value["exactness"], "unique_within_supplied_bound");
+}
+
+#[test]
+fn multimodular_jsonl_rational_matrix_has_json_csv_and_jsonl_parity() {
+    let input = [
+        serde_json::json!({"modulus":"101","shape":[2,2],"values":["68","57","0","51"]}),
+        serde_json::json!({"modulus":"103","shape":[2,2],"values":["35","14","0","52"]}),
+        serde_json::json!({"modulus":"107","shape":[2,2],"values":["72","91","0","54"]}),
+    ]
+    .into_iter()
+    .map(|value| value.to_string())
+    .collect::<Vec<_>>()
+    .join("\n");
+
+    let json_output = run(
+        &[
+            "reconstruct",
+            "multi",
+            "rational",
+            "matrix",
+            "5",
+            "7",
+            "--json",
+        ],
+        Some(&input),
+    );
+    assert!(json_output.status.success());
+    let value: Value = serde_json::from_slice(&json_output.stdout).unwrap();
+    assert_eq!(
+        value["values"],
+        serde_json::json!([["2/3", "-5/7"], ["0/1", "1/2"]])
+    );
+
+    let csv_output = run(
+        &[
+            "reconstruct",
+            "multi",
+            "rational",
+            "matrix",
+            "5",
+            "7",
+            "--csv",
+        ],
+        Some(&input),
+    );
+    assert_eq!(stdout(&csv_output), "2/3,-5/7\n0/1,1/2\n");
+
+    let jsonl_output = run(
+        &[
+            "reconstruct",
+            "multi",
+            "rational",
+            "matrix",
+            "5",
+            "7",
+            "--jsonl",
+        ],
+        Some(&input),
+    );
+    let lines = stdout(&jsonl_output)
+        .lines()
+        .map(|line| serde_json::from_str::<Value>(line).unwrap())
+        .collect::<Vec<_>>();
+    assert_eq!(lines.len(), 3);
+    assert_eq!(lines[0]["type"], "metadata");
+    assert_eq!(lines[1]["values"], serde_json::json!(["2/3", "-5/7"]));
+    assert_eq!(lines[2]["values"], serde_json::json!(["0/1", "1/2"]));
+}
+
+#[test]
+fn multimodular_jsonl_stream_handles_ten_thousand_coordinates() {
+    let coordinate_count = 10_000_usize;
+    let input = [101_u64, 103, 107]
+        .into_iter()
+        .map(|prime| {
+            serde_json::json!({
+                "modulus": prime.to_string(),
+                "shape": [coordinate_count],
+                "values": (0..coordinate_count)
+                    .map(|index| ((index as u64 * 17 + 3) % prime).to_string())
+                    .collect::<Vec<_>>()
+            })
+            .to_string()
+        })
+        .collect::<Vec<_>>()
+        .join("\n");
+    let output = run(
+        &[
+            "reconstruct",
+            "multi",
+            "integer",
+            "vector",
+            "200000",
+            "--csv",
+        ],
+        Some(&input),
+    );
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let text = stdout(&output);
+    assert_eq!(text.lines().count(), coordinate_count);
+    assert_eq!(text.lines().next(), Some("3"));
+    assert_eq!(text.lines().last(), Some("169986"));
 }

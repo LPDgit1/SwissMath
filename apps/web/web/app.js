@@ -60,6 +60,15 @@ const catalog = {
       t('contfrac', 'Continued fraction', 'Converts a fraction or decimal exactly into its quotients.', 'Example: 355/113 → [3; 7, 16]', [f('value', 'Value', '355/113')]),
       t('rationalize', 'Rationalize', 'Finds the closest fraction under a maximum denominator.', 'π with denominator ≤10000 → 355/113', [f('value', 'Decimal value', '3.141592653589793'), f('max_denominator', 'Maximum denominator', '10000')]),
       t('rational-reconstruct', 'Rational reconstruction', 'Reconstructs a/b from a residue while checking bounds and modular identity.', 'Returns an error when the constraints do not determine a valid solution', [f('residue', 'Residue r', '7'), f('modulus', 'Modulus m', '101'), f('bound', 'Bound |a|, |b|', '10')]),
+      t('multimodular-reconstruction', 'Multimodular reconstruction', 'Combines matching prime-residue blocks and reconstructs exact scalar, vector, or matrix values.', 'Paste human blocks or JSONL. Local files remain in this browser.', [
+        s('input_type', 'Input type', 'matrix', [['scalar', 'Scalar'], ['vector', 'Vector'], ['matrix', 'Matrix']]),
+        s('reconstruction', 'Reconstruction', 'integer', [['crt', 'CRT residue'], ['integer', 'Integer'], ['rational', 'Rational']]),
+        f('data', 'Prime-residue blocks', 'mod 101\n100 2\n3 97\n\nmod 103\n102 2\n3 99', 'Human format: mod <prime>, then matching values or rows. JSONL is also accepted.', 'textarea'),
+        f('local_file', 'Load local .txt or .jsonl', '', 'The file is read locally and is never uploaded.', 'file'),
+        f('max_abs', 'Maximum |integer| (optional)', '100', 'Leave empty for the centered representative.'),
+        f('max_numerator', 'Maximum |numerator| (optional)', '', 'For rational mode, provide both bounds or neither.'),
+        f('max_denominator', 'Maximum denominator (optional)', '', 'For rational mode, provide both bounds or neither.'),
+      ]),
     ],
   },
   polynomials: {
@@ -257,6 +266,10 @@ function renderTool() {
     caption.textContent = field.label;
     const input = document.createElement(field.type === 'select' ? 'select' : (multiline ? 'textarea' : 'input'));
     input.name = field.name;
+    if (field.type === 'file') {
+      input.type = 'file';
+      input.accept = '.txt,.jsonl,text/plain,application/x-ndjson';
+    }
     if (field.type === 'select') {
       input.replaceChildren(...field.options.map(([value, text]) => {
         const option = document.createElement('option');
@@ -265,8 +278,8 @@ function renderTool() {
         return option;
       }));
     }
-    input.value = field.value;
-    input.required = true;
+    if (field.type !== 'file') input.value = field.value;
+    input.required = field.type !== 'file';
     if (multiline) input.rows = field.type === 'textarea' ? 4 : 3;
     const help = document.createElement('small');
     help.textContent = field.help || (multiline ? (field.name === 'matrix' ? 'One row per line.' : 'One value per line.') : '');
@@ -286,6 +299,11 @@ function renderTool() {
     form.elements.namedItem('operation').addEventListener('change', updateCombinatoricsFields);
     updateCombinatoricsFields();
   }
+  if (currentTool.id === 'multimodular-reconstruction') {
+    form.elements.namedItem('reconstruction').addEventListener('change', updateMultimodularFields);
+    form.elements.namedItem('local_file').addEventListener('change', loadMultimodularFile);
+    updateMultimodularFields();
+  }
 }
 
 function updateCombinatoricsFields() {
@@ -296,6 +314,32 @@ function updateCombinatoricsFields() {
   k.disabled = !needsK;
   k.required = needsK;
   k.closest('label').classList.toggle('hidden', !needsK);
+}
+
+function updateMultimodularFields() {
+  if (currentTool.id !== 'multimodular-reconstruction') return;
+  const mode = form.elements.namedItem('reconstruction').value;
+  const integerBound = form.elements.namedItem('max_abs');
+  const rationalBounds = [form.elements.namedItem('max_numerator'), form.elements.namedItem('max_denominator')];
+  integerBound.disabled = mode !== 'integer';
+  integerBound.required = false;
+  integerBound.closest('label').classList.toggle('hidden', mode !== 'integer');
+  rationalBounds.forEach((control) => {
+    control.disabled = mode !== 'rational';
+    control.required = false;
+    control.closest('label').classList.toggle('hidden', mode !== 'rational');
+  });
+}
+
+async function loadMultimodularFile(event) {
+  const [file] = event.target.files;
+  if (!file) return;
+  try {
+    form.elements.namedItem('data').value = await file.text();
+    showToast(`Local file loaded: ${file.name}`);
+  } catch (error) {
+    showToast(`Could not read the local file: ${error.message || error}`, true);
+  }
 }
 
 function decode(call, payload) {
@@ -361,6 +405,11 @@ function renderBatch(rows) {
 
 function matrixViewsForResult(result) {
   const column = (values) => Array.isArray(values) ? values.map((value) => [value]) : null;
+  if (currentTool.id === 'multimodular-reconstruction' && Array.isArray(result.preview)) {
+    return result.shape?.length === 2
+      ? [{ label: result.preview_truncated ? 'Reconstructed matrix preview' : 'Reconstructed matrix', rows: result.preview }]
+      : [{ label: result.preview_truncated ? 'Reconstructed vector preview' : 'Reconstructed vector', rows: column(result.preview) }];
+  }
   if (currentTool.id.startsWith('fp-matrix-') && Array.isArray(result.matrix)) return [{ label: 'Matrix over Fp', rows: result.matrix }];
   if (currentTool.id === 'fp-matrix-vector' && Array.isArray(result.vector)) return [{ label: 'Result vector', rows: column(result.vector) }];
   if (currentTool.id === 'fp-matrix-kernel' && Array.isArray(result.basis)) return [{ label: 'Kernel basis', rows: result.basis }];
@@ -433,7 +482,7 @@ function renderScalar(result) {
   const main = mainResult(result);
   const hasMatrix = renderMatrixViews(matrixViewsForResult(result));
   primary.textContent = displayValue(main);
-  const hiddenMatrixKeys = new Set(['result', 'matrix', 'basis', 'nullspace_basis', 'solution', 'particular', 'invariants']);
+  const hiddenMatrixKeys = new Set(['result', 'matrix', 'basis', 'nullspace_basis', 'solution', 'particular', 'invariants', 'values', 'preview']);
   const supporting = Object.fromEntries(Object.entries(result).filter(([key]) => !hiddenMatrixKeys.has(key)));
   details.textContent = Object.entries(supporting).map(([key, value]) => `${key}: ${formatDetailValue(value)}`).join('\n');
   primary.classList.toggle('hidden', Boolean(hasMatrix));
@@ -442,9 +491,14 @@ function renderScalar(result) {
   batchResults.classList.add('hidden');
 }
 
-form.addEventListener('submit', (event) => {
+form.addEventListener('submit', async (event) => {
   event.preventDefault();
   const input = Object.fromEntries(new FormData(form));
+  delete input.local_file;
+  const submitButton = form.querySelector('button[type="submit"]');
+  submitButton.disabled = true;
+  showToast('Computing…');
+  await new Promise((resolve) => requestAnimationFrame(resolve));
   const started = performance.now();
   try {
     const values = batchInputs(input);
@@ -478,6 +532,8 @@ form.addEventListener('submit', (event) => {
     resultActions.classList.add('hidden');
     batchResults.classList.add('hidden');
     showToast(`${error.message || error} · time: ${formatElapsed(elapsed)}`, true);
+  } finally {
+    submitButton.disabled = false;
   }
 });
 
@@ -489,12 +545,16 @@ categoryButtons.forEach((button) => button.addEventListener('click', () => selec
 
 function exportPayload() {
   return {
-    application: 'SwissMath Web', web_version: '0.5', core_version: '0.9',
+    application: 'SwissMath Web', web_version: '0.6', core_version: '0.10',
     operation: currentResult.tool, elapsed_ms: currentResult.elapsed, records: currentResult.records,
   };
 }
 
 function plainResult() {
+  if (currentResult.tool === 'multimodular-reconstruction') {
+    const details = currentResult.records[0].details;
+    return `${details.reconstruction_mode}\t${displayValue(details.preview)}${details.preview_truncated ? '\nPreview truncated; use JSON, JSONL, or CSV for all values.' : ''}`;
+  }
   return currentResult.records.map((record) => `${displayValue(record.input)}\t${displayValue(record.result)}\t${record.status}\t${record.exactness}`).join('\n');
 }
 
@@ -504,7 +564,33 @@ function csvEscape(value) {
 }
 
 function resultCsv() {
+  if (currentResult.tool === 'multimodular-reconstruction') {
+    const { values, shape } = currentResult.records[0].details;
+    if (shape.length === 2) return values.map((row) => row.map(csvEscape).join(',')).join('\n');
+    if (Array.isArray(values)) return values.map((value) => csvEscape(value)).join('\n');
+    return csvEscape(values);
+  }
   return ['input,result,status,exactness', ...currentResult.records.map((record) => [record.input, record.result, record.status, record.exactness].map(csvEscape).join(','))].join('\n');
+}
+
+function resultJsonl() {
+  if (currentResult.tool !== 'multimodular-reconstruction') return `${JSON.stringify(exportPayload())}\n`;
+  const details = currentResult.records[0].details;
+  const metadata = {
+    type: 'metadata', status: details.status, shape: details.shape,
+    number_of_moduli: details.number_of_moduli, combined_modulus: details.combined_modulus,
+    combined_modulus_bits: details.combined_modulus_bits, reconstruction_mode: details.reconstruction_mode,
+    exactness: details.exactness, bounds: details.bounds,
+  };
+  const lines = [JSON.stringify(metadata)];
+  if (details.shape.length === 2) {
+    details.values.forEach((values, row) => lines.push(JSON.stringify({ row, values })));
+  } else if (Array.isArray(details.values)) {
+    details.values.forEach((value, index) => lines.push(JSON.stringify({ index, value })));
+  } else {
+    lines.push(JSON.stringify({ index: 0, value: details.values }));
+  }
+  return `${lines.join('\n')}\n`;
 }
 
 function download(name, content, type) {
@@ -522,6 +608,13 @@ function shellValue(value) {
 }
 
 function cliCommand() {
+  if (currentTool.id === 'multimodular-reconstruction' && currentResult.records.length === 1) {
+    const input = currentResult.input;
+    const values = ['swissmath', 'reconstruct', 'multi', input.reconstruction, input.input_type];
+    if (input.reconstruction === 'integer' && input.max_abs) values.push(input.max_abs);
+    if (input.reconstruction === 'rational' && input.max_numerator && input.max_denominator) values.push(input.max_numerator, input.max_denominator);
+    return `${values.map(shellValue).join(' ')} < residues.txt`;
+  }
   if (currentTool.id === 'modular-combinatorics' && currentResult.records.length === 1) {
     const input = currentResult.input;
     const values = ['swissmath', 'comb', input.operation, input.prime, input.n];
@@ -572,6 +665,12 @@ document.querySelector('#download-csv').addEventListener('click', () => {
   showToast('CSV ready for download.');
 });
 
+document.querySelector('#download-jsonl').addEventListener('click', () => {
+  if (!currentResult) return;
+  download(`swissmath-${currentTool.id}.jsonl`, resultJsonl(), 'application/x-ndjson;charset=utf-8');
+  showToast('JSONL ready for download.');
+});
+
 document.querySelector('#copy-command').addEventListener('click', async () => {
   const command = cliCommand();
   if (!command) return;
@@ -592,7 +691,7 @@ document.querySelector('#share-result').addEventListener('click', async () => {
 
 document.querySelector('#save-result').addEventListener('click', () => {
   if (!currentResult) return;
-  const text = `SwissMath Web v0.5 · Core v0.9\n${currentResult.title}\nTime: ${formatElapsed(currentResult.elapsed)}\n\n${plainResult()}\n`;
+  const text = `SwissMath Web v0.6 · Core v0.10\n${currentResult.title}\nTime: ${formatElapsed(currentResult.elapsed)}\n\n${plainResult()}\n`;
   download(`swissmath-${currentTool.id}.txt`, text, 'text/plain;charset=utf-8');
   showToast('Result saved.');
 });
@@ -628,6 +727,7 @@ function restoreShareState() {
     if (value !== null && control) control.value = value;
   });
   updateCombinatoricsFields();
+  updateMultimodularFields();
   showToast('Input restored from the link. Press Calculate to run it.');
   return true;
 }

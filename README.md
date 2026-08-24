@@ -6,7 +6,7 @@ desktop, command-line, and WebAssembly interfaces.
 
 By Luca Pezzullo, 2026
 
-Current source status: SwissMath Core v0.9, Web v0.5, CLI v0.4, and Desktop
+Current source status: SwissMath Core v0.10, Web v0.6, CLI v0.5, and Desktop
 v0.5. The public deployment may lag the validated local source release.
 
 ## Try it online
@@ -41,6 +41,8 @@ because the public deployment may lag the source repository.
   Fp with solved, no-solution, and search-limit outcomes;
 - factorial/binomial p-adic valuations and bounded exact factorial/binomial
   residues modulo a prime;
+- streaming multimodular CRT and verified exact reconstruction of integer or
+  rational scalars, vectors, and matrices from distinct prime-residue blocks;
 - Jacobi and Legendre symbols;
 - modular roots in the currently supported domains.
 
@@ -97,6 +99,39 @@ coefficients. For example, `C(10^18,10^9) mod p` is reduced to base-p digit
 work. Difficult mid-digit products are declined before execution when they
 exceed the fixed interactive work bound; this is an incomplete bounded
 computation, not an approximate answer.
+
+### Multimodular reconstruction
+
+Core v0.10 incrementally combines matching residue blocks over distinct prime
+fields. One flat `BigUint` accumulator serves scalars, vectors, and matrices;
+source blocks need not remain in memory. A centered result is only the canonical
+representative modulo the combined modulus. Supplied integer or rational bounds
+add exact uniqueness conditions (`2B < M` or `2AB < M`), and every returned
+candidate is verified.
+
+Human input uses a `mod <prime>` header followed by matching rows:
+
+```text
+mod 101
+100 2
+3 97
+
+mod 103
+102 2
+3 99
+```
+
+The Web tool can paste this format or load a local `.txt`/`.jsonl` file without
+uploading it. For a streaming research pipeline, each JSONL line is one block:
+
+```json
+{"modulus":"101","shape":[2,2],"values":["100","2","3","97"]}
+{"modulus":"103","shape":[2,2],"values":["102","2","3","99"]}
+```
+
+```powershell
+target\release\swissmath.exe reconstruct multi integer matrix 100 --input residues.jsonl --csv --output exact.csv
+```
 
 ### Rational reconstruction semantics
 
@@ -195,6 +230,7 @@ target\release\swissmath.exe comb factorial-valuation 2 1000000000000000000 --js
 target\release\swissmath.exe comb binomial-valuation 2 1000000000000000000 1000000000 --json
 target\release\swissmath.exe comb binomial-mod 1000003 1000000000000000000 1000000000 --json
 target\release\swissmath.exe comb factorial-mod 1000000007 1000000 --json
+target\release\swissmath.exe reconstruct multi integer matrix 100 --input residues.jsonl --csv --output exact.csv
 ```
 
 Streaming PowerShell example:
@@ -263,7 +299,7 @@ cargo clippy --manifest-path apps/web/Cargo.toml --all-targets -- -D warnings
 
 The CLI and Web adapter keep mathematical logic in `swissmath-core`. The Web
 GUI reports elapsed time, accepts newline-separated scalar batches, exports
-JSON/CSV, copies reproducible CLI commands, creates small hash-based share
+JSON/JSONL/CSV, copies reproducible CLI commands, creates small hash-based share
 links, and retains local result saving and print/PDF output.
 
 ## Source bundles
@@ -273,7 +309,7 @@ optional `-BundleName` parameter can produce, for example:
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File scripts/package-source.ps1
-powershell -ExecutionPolicy Bypass -File scripts/package-source.ps1 -BundleName SwissMath-v0.9-source
+powershell -ExecutionPolicy Bypass -File scripts/package-source.ps1 -BundleName SwissMath-v0.10-source
 ```
 
 Archives exclude build output, local work folders, binaries, `.git`, and other

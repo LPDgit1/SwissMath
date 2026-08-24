@@ -1,6 +1,6 @@
 [CmdletBinding()]
 param(
-    [string]$BundleName = 'SwissMath-v0.9-source'
+    [string]$BundleName = 'SwissMath-v0.10-source'
 )
 
 $ErrorActionPreference = 'Stop'

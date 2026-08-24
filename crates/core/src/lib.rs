@@ -13,6 +13,7 @@ mod fractions;
 mod linear_algebra;
 mod modular;
 mod modulus;
+mod multimodular;
 mod multiplicative_groups;
 mod number_theory;
 mod polynomials;
@@ -53,6 +54,10 @@ pub use linear_algebra::{
 };
 pub use modular::{ArithmeticError, ModCtx, gcd, inv_mod, reduce_i128};
 pub use modulus::Modulus;
+pub use multimodular::{
+    BigRationalReconstruction, MultimodularAccumulator, MultimodularError, centered_representative,
+    rational_reconstruct_big, rational_reconstruct_big_bounded, reconstruct_integer_bounded,
+};
 pub use multiplicative_groups::{
     DiscreteLogResult, MultiplicativeGroupError, discrete_log, is_primitive_root, primitive_root,
 };

@@ -5,13 +5,12 @@
 //! digit binomials. Factorial residues choose the shorter direct or Wilson-
 //! complement product. Linear product work is bounded before it starts.
 
-use crate::PrimeField;
+use crate::{PrimeField, Valuation};
 
-const MAX_COMBINATORIAL_PRODUCT_STEPS: u64 = 1_000_000;
+const MAX_COMBINATORIAL_PRODUCT_STEPS: u64 = 100_000_000;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum CombinatoricsError {
-    KExceedsN,
     ComputationLimitReached { estimated_steps: u64, limit: u64 },
     InternalInverseFailure,
 }
@@ -28,23 +27,27 @@ pub fn factorial_valuation(mut n: u64, field: PrimeField) -> u64 {
 }
 
 /// Returns `v_p(C(n,k))` by counting base-p carries (Kummer's theorem).
-pub fn binomial_valuation(n: u64, k: u64, field: PrimeField) -> Result<u64, CombinatoricsError> {
+pub fn binomial_valuation(
+    n: u64,
+    k: u64,
+    field: PrimeField,
+) -> Result<Valuation, CombinatoricsError> {
     if k > n {
-        return Err(CombinatoricsError::KExceedsN);
+        return Ok(Valuation::Infinite);
     }
     let prime = field.modulus();
     let mut left = k;
     let mut right = n - k;
-    let mut carry = 0_u64;
-    let mut carries = 0_u64;
+    let mut carry = 0_u32;
+    let mut carries = 0_u32;
     while left != 0 || right != 0 || carry != 0 {
         let sum = u128::from(left % prime) + u128::from(right % prime) + u128::from(carry);
-        carry = u64::from(sum >= u128::from(prime));
+        carry = u32::from(sum >= u128::from(prime));
         carries += carry;
         left /= prime;
         right /= prime;
     }
-    Ok(carries)
+    Ok(Valuation::Finite(carries))
 }
 
 /// Returns `C(n,k) mod p` using Lucas' theorem and bounded digit products.
@@ -184,5 +187,37 @@ mod tests {
         let field = PrimeField::new(101).unwrap();
         assert_eq!(binomial_mod_prime_bounded(101, 1, field, 0), Ok(0));
         assert_eq!(factorial_mod_prime_bounded(101, field, 0), Ok(0));
+    }
+
+    #[test]
+    fn calibrated_limit_accepts_the_boundary_and_rejects_only_above_it() {
+        assert_eq!(MAX_COMBINATORIAL_PRODUCT_STEPS, 100_000_000);
+        assert_eq!(
+            ensure_work(
+                MAX_COMBINATORIAL_PRODUCT_STEPS,
+                MAX_COMBINATORIAL_PRODUCT_STEPS
+            ),
+            Ok(())
+        );
+        assert_eq!(
+            ensure_work(
+                MAX_COMBINATORIAL_PRODUCT_STEPS + 1,
+                MAX_COMBINATORIAL_PRODUCT_STEPS
+            ),
+            Err(CombinatoricsError::ComputationLimitReached {
+                estimated_steps: 100_000_001,
+                limit: 100_000_000,
+            })
+        );
+
+        let field = PrimeField::new(101).unwrap();
+        assert_eq!(factorial_mod_prime_bounded(8, field, 7), Ok(21));
+        assert_eq!(
+            factorial_mod_prime_bounded(9, field, 7),
+            Err(CombinatoricsError::ComputationLimitReached {
+                estimated_steps: 8,
+                limit: 7,
+            })
+        );
     }
 }

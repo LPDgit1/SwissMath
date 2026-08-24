@@ -1,5 +1,5 @@
 use swissmath_core::{
-    CombinatoricsError, PrimeField, binomial_mod_prime, binomial_valuation, factorial_mod_prime,
+    PrimeField, Valuation, binomial_mod_prime, binomial_valuation, factorial_mod_prime,
     factorial_valuation,
 };
 
@@ -35,13 +35,16 @@ fn legendre_and_kummer_match_required_values_and_independent_identity() {
                 let legendre = factorial_valuation(n, field)
                     - factorial_valuation(k, field)
                     - factorial_valuation(n - k, field);
-                assert_eq!(binomial_valuation(n, k, field), Ok(legendre));
+                assert_eq!(
+                    binomial_valuation(n, k, field),
+                    Ok(Valuation::Finite(legendre as u32))
+                );
             }
         }
     }
     assert_eq!(
         binomial_valuation(3, 4, PrimeField::new(5).unwrap()),
-        Err(CombinatoricsError::KExceedsN)
+        Ok(Valuation::Infinite)
     );
 }
 

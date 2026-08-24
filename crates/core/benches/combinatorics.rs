@@ -41,6 +41,23 @@ fn main() {
         factorial_mod_prime(black_box(large.modulus() - 1 - 50_000), large).unwrap()
     });
     measure("binomial computation-limit early exit", 100_000, || {
-        binomial_mod_prime(black_box(500_000_003), black_box(250_000_001), large)
+        binomial_mod_prime(black_box(600_000_003), black_box(300_000_001), large)
     });
+
+    println!("production product-loop calibration (one measured call per row)");
+    for steps in [
+        1_000_000_u64,
+        5_000_000,
+        10_000_000,
+        25_000_000,
+        50_000_000,
+        100_000_000,
+    ] {
+        measure(&format!("factorial direct, {steps} steps"), 1, || {
+            factorial_mod_prime(black_box(steps + 1), large).unwrap()
+        });
+        measure(&format!("binomial digit, {steps} steps"), 1, || {
+            binomial_mod_prime(black_box(steps * 2), black_box(steps), large).unwrap()
+        });
+    }
 }

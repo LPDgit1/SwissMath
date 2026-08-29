@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased — Exact linear algebra extensions
+
+- Added exact rational matrix arithmetic, transpose, trace, powers, inverse,
+  characteristic/minimal polynomials, eigenvalue/eigenspace analysis,
+  rational diagonalization classification, and pivoted LU decomposition.
+- Exposed the new operations through the Web linear-algebra toolbox and the
+  native `qmatrix` CLI family, with explicit non-split and bounded-search
+  outcomes instead of decimal approximations.
+
 ## 0.10.0 — Multimodular Exact Reconstruction
 
 - Added a streaming `BigUint` incremental CRT accumulator for scalar, vector,

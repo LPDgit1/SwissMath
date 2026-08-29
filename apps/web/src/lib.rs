@@ -3,16 +3,16 @@ use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use serde_json::{Value, json};
 use swissmath_core::{
     CombinatoricsError, Congruence, DecimalIntegerAnalysis, DecimalIntegerAnalysisError,
-    DiscreteLogResult, FpLinearSystemSolution, FpMatrix, FpPolynomial, LinearCongruence,
-    LinearSolution, LinearSystemSolution, ModCtx, ModularFilter, ModularFilterBuild, ModularSieve,
-    Modulus, MultimodularAccumulator, MultimodularError, MultiplicativeOrderResult, Polynomial,
-    PrimalityAssessment, PrimeField, QuadraticError, Rational, RationalMatrix, ResidueError,
-    ResidueSet, Valuation, analyze_integer_decimal, binomial_mod_prime, binomial_valuation,
-    continued_fraction, convergents, crt_fold, crt_pair, determinant_bareiss, discrete_log,
-    extended_gcd, factor, factorial_mod_prime, factorial_valuation, find_recurrence,
-    finite_differences, format_in_base, guess_sequence, hermite_normal_form,
-    infer_recurrence_nth_mod_prime, integer_nth_root, interpolate, is_prime, is_primitive_root,
-    jacobi_symbol, lcm, linear_recurrence_nth_mod_prime, modular_square_roots,
+    DiagonalizationResult, DiscreteLogResult, EigenvalueAnalysis, FpLinearSystemSolution,
+    FpMatrix, FpPolynomial, LinearCongruence, LinearSolution, LinearSystemSolution,
+    ModCtx, ModularFilter, ModularFilterBuild, ModularSieve, Modulus, MultimodularAccumulator,
+    MultimodularError, MultiplicativeOrderResult, Polynomial, PrimalityAssessment, PrimeField,
+    QuadraticError, Rational, RationalMatrix, ResidueError, ResidueSet, Valuation,
+    analyze_integer_decimal, binomial_mod_prime, binomial_valuation, continued_fraction,
+    convergents, crt_fold, crt_pair, discrete_log, extended_gcd, factor, factorial_mod_prime,
+    factorial_valuation, find_recurrence, finite_differences, format_in_base, guess_sequence,
+    hermite_normal_form, infer_recurrence_nth_mod_prime, integer_nth_root, interpolate, is_prime,
+    is_primitive_root, jacobi_symbol, lcm, linear_recurrence_nth_mod_prime, modular_square_roots,
     multiplicative_order, next_prime, nullspace, parse_decimal, parse_in_base, perfect_power,
     polynomial_gcd, previous_prime, primitive_root, pslq, rank, rational_reconstruct_bounded,
     rationalize_decimal, rref, smith_normal_form_invariants, solve, solve_linear_congruence,
@@ -1397,8 +1397,28 @@ fn parse_integer_matrix(value: &str) -> Result<Vec<Vec<i64>>, String> {
     Ok(rows)
 }
 
-fn rational_matrix(rows: &[Vec<i64>]) -> Result<RationalMatrix, String> {
-    RationalMatrix::from_integers(rows).map_err(|_| "The matrix is invalid.".to_owned())
+fn parse_rational_list(value: &str) -> Result<Vec<Rational>, String> {
+    let values = value
+        .split(|character: char| character == ',' || character.is_whitespace())
+        .filter(|part| !part.is_empty())
+        .map(parse_rational_value)
+        .collect::<Result<Vec<_>, _>>()?;
+    if values.is_empty() {
+        Err("Enter at least one value.".to_owned())
+    } else {
+        Ok(values)
+    }
+}
+
+fn parse_rational_matrix(value: &str) -> Result<RationalMatrix, String> {
+    let rows = value
+        .lines()
+        .flat_map(|line| line.split(';'))
+        .filter(|row| !row.trim().is_empty())
+        .map(parse_rational_list)
+        .collect::<Result<Vec<_>, _>>()?;
+    RationalMatrix::new(rows)
+        .map_err(|_| "The matrix must be non-empty and rectangular.".to_owned())
 }
 
 fn rational_rows_json(rows: &[Vec<Rational>]) -> Value {
@@ -1407,6 +1427,49 @@ fn rational_rows_json(rows: &[Vec<Rational>]) -> Value {
             .map(|row| row.iter().map(ToString::to_string).collect::<Vec<_>>())
             .collect::<Vec<_>>()
     )
+}
+
+fn rational_matrix_json(matrix: &RationalMatrix) -> Value {
+    rational_rows_json(matrix.data())
+}
+
+fn polynomial_json(polynomial: &Polynomial) -> Value {
+    json!({
+        "text": polynomial.format_human("x"),
+        "coefficients": polynomial.coefficients().iter().map(ToString::to_string).collect::<Vec<_>>()
+    })
+}
+
+fn eigenvalue_json(value: &swissmath_core::Eigenvalue) -> Value {
+    json!({
+        "value": value.value.to_string(),
+        "algebraic_multiplicity": value.algebraic_multiplicity,
+        "geometric_multiplicity": value.geometric_multiplicity,
+        "eigenspace": rational_rows_json(&value.eigenspace_basis)
+    })
+}
+
+fn eigenvalue_analysis_json(analysis: &EigenvalueAnalysis) -> Value {
+    json!({
+        "characteristic_polynomial": polynomial_json(&analysis.characteristic_polynomial),
+        "eigenvalues": analysis.eigenvalues.iter().map(eigenvalue_json).collect::<Vec<_>>(),
+        "remaining_factor": analysis.remaining_factor.as_ref().map(polynomial_json),
+        "search_limited": analysis.search_limited,
+        "split_over_rationals": analysis.remaining_factor.is_none() && !analysis.search_limited
+    })
+}
+
+fn eigenvalue_summary(analysis: &EigenvalueAnalysis) -> String {
+    if analysis.eigenvalues.is_empty() {
+        "No rational eigenvalues found".to_owned()
+    } else {
+        analysis
+            .eigenvalues
+            .iter()
+            .map(|value| format!("{} (multiplicity {})", value.value, value.algebraic_multiplicity))
+            .collect::<Vec<_>>()
+            .join(", ")
+    }
 }
 
 fn run_tool(tool: &str, input: &Value) -> Result<Value, String> {
@@ -1799,7 +1862,27 @@ fn run_tool(tool: &str, input: &Value) -> Result<Value, String> {
                 json!({ "result": result.polynomial_degree.map_or_else(|| "No degree determined".to_owned(), |degree| format!("Polynomial progression of degree {degree}")), "degree": result.polynomial_degree, "rows": result.rows.iter().map(|row| row.iter().map(ToString::to_string).collect::<Vec<_>>()).collect::<Vec<_>>() }),
             )
         }
-        "det" | "rank" | "rref" | "nullspace" | "hnf" | "snf" | "solve" => {
+        "det"
+        | "rank"
+        | "rref"
+        | "nullspace"
+        | "hnf"
+        | "snf"
+        | "solve"
+        | "matrix-add"
+        | "matrix-sub"
+        | "matrix-mul"
+        | "transpose"
+        | "trace"
+        | "power"
+        | "inverse"
+        | "charpoly"
+        | "eigenvalues"
+        | "eigenspace"
+        | "diagonalize"
+        | "lu"
+        | "minimal-polynomial" =>
+        {
             run_matrix_tool(tool, input)
         }
         "integer-relation" => {
@@ -2083,30 +2166,183 @@ fn run_fp_polynomial_tool(tool: &str, input: &Value) -> Result<Value, String> {
 }
 
 fn run_matrix_tool(tool: &str, input: &Value) -> Result<Value, String> {
-    let rows = parse_integer_matrix(field(input, "matrix")?)?;
-    let rational = rational_matrix(&rows)?;
-    let integers = rows
-        .iter()
-        .map(|row| row.iter().copied().map(BigInt::from).collect::<Vec<_>>())
-        .collect::<Vec<_>>();
+    let rational = if matches!(tool, "hnf" | "snf") {
+        None
+    } else {
+        Some(parse_rational_matrix(field(input, "matrix")?)?)
+    };
+    let rational = rational.as_ref();
     match tool {
-        "det" => Ok(
-            json!({ "result": determinant_bareiss(&integers).map_err(|_| "The determinant requires a square matrix.".to_owned())?.to_string() }),
-        ),
-        "rank" => Ok(json!({ "result": rank(&rational).to_string() })),
+        "det" => Ok(json!({
+            "result": rational
+                .expect("rational matrix parsed")
+                .determinant()
+                .map_err(|error| format!("The determinant failed: {error:?}."))?
+                .to_string()
+        })),
+        "rank" => Ok(json!({
+            "result": rank(rational.expect("rational matrix parsed")).to_string()
+        })),
         "rref" => {
-            let result = rref(&rational);
-            Ok(
-                json!({ "result": rational_rows_json(result.matrix.data()), "matrix": rational_rows_json(result.matrix.data()), "pivots": result.pivot_columns }),
-            )
+            let result = rref(rational.expect("rational matrix parsed"));
+            Ok(json!({
+                "result": rational_rows_json(result.matrix.data()),
+                "matrix": rational_rows_json(result.matrix.data()),
+                "pivots": result.pivot_columns
+            }))
         }
         "nullspace" => {
-            let basis = nullspace(&rational);
-            Ok(
-                json!({ "result": rational_rows_json(&basis), "basis": rational_rows_json(&basis), "dimension": basis.len() }),
-            )
+            let basis = nullspace(rational.expect("rational matrix parsed"));
+            Ok(json!({
+                "result": rational_rows_json(&basis),
+                "basis": rational_rows_json(&basis),
+                "dimension": basis.len()
+            }))
+        }
+        "matrix-add" | "matrix-sub" | "matrix-mul" => {
+            let left = rational.expect("rational matrix parsed");
+            let right = parse_rational_matrix(field(input, "other")?)?;
+            let result = match tool {
+                "matrix-add" => left.add(&right),
+                "matrix-sub" => left.sub(&right),
+                _ => left.mul(&right),
+            }
+            .map_err(|error| format!("Matrix operation failed: {error:?}."))?;
+            let matrix = rational_matrix_json(&result);
+            Ok(json!({ "result": matrix, "matrix": matrix }))
+        }
+        "transpose" => {
+            let result = rational.expect("rational matrix parsed").transpose();
+            let matrix = rational_matrix_json(&result);
+            Ok(json!({ "result": matrix, "matrix": matrix }))
+        }
+        "trace" => Ok(json!({
+            "result": rational
+                .expect("rational matrix parsed")
+                .trace()
+                .map_err(|error| format!("Trace failed: {error:?}."))?
+                .to_string()
+        })),
+        "power" => {
+            let result = rational
+                .expect("rational matrix parsed")
+                .power(field_u64(input, "exponent")?)
+                .map_err(|error| format!("Matrix power failed: {error:?}."))?;
+            let matrix = rational_matrix_json(&result);
+            Ok(json!({ "result": matrix, "matrix": matrix }))
+        }
+        "inverse" => {
+            let result = rational
+                .expect("rational matrix parsed")
+                .inverse()
+                .map_err(|error| format!("Matrix inverse failed: {error:?}."))?;
+            let matrix = rational_matrix_json(&result);
+            Ok(json!({ "result": matrix, "matrix": matrix }))
+        }
+        "charpoly" => {
+            let result = rational
+                .expect("rational matrix parsed")
+                .characteristic_polynomial()
+                .map_err(|error| format!("Characteristic polynomial failed: {error:?}."))?;
+            Ok(json!({
+                "result": result.format_human("x"),
+                "characteristic_polynomial": polynomial_json(&result)
+            }))
+        }
+        "eigenvalues" => {
+            let result = rational
+                .expect("rational matrix parsed")
+                .eigenvalue_analysis()
+                .map_err(|error| format!("Eigenvalue analysis failed: {error:?}."))?;
+            let mut output = eigenvalue_analysis_json(&result)
+                .as_object()
+                .expect("eigenvalue analysis is an object")
+                .clone();
+            output.insert("result".to_owned(), json!(eigenvalue_summary(&result)));
+            Ok(Value::Object(output))
+        }
+        "eigenspace" => {
+            let eigenvalue = parse_rational_value(field(input, "eigenvalue")?)?;
+            let basis = rational
+                .expect("rational matrix parsed")
+                .eigenspace(&eigenvalue)
+                .map_err(|error| format!("Eigenspace failed: {error:?}."))?;
+            let matrix = rational_rows_json(&basis);
+            Ok(json!({
+                "result": matrix,
+                "basis": matrix,
+                "eigenvalue": eigenvalue.to_string(),
+                "dimension": basis.len()
+            }))
+        }
+        "diagonalize" => match rational
+            .expect("rational matrix parsed")
+            .diagonalize()
+            .map_err(|error| format!("Diagonalization failed: {error:?}."))?
+        {
+            DiagonalizationResult::Diagonalizable {
+                analysis,
+                p,
+                d,
+                inverse,
+            } => Ok(json!({
+                "result": "Diagonalizable over Q",
+                "status": "diagonalizable_over_q",
+                "p": rational_matrix_json(&p),
+                "d": rational_matrix_json(&d),
+                "inverse": rational_matrix_json(&inverse),
+                "eigenvalues": analysis.eigenvalues.iter().map(eigenvalue_json).collect::<Vec<_>>(),
+                "characteristic_polynomial": polynomial_json(&analysis.characteristic_polynomial)
+            })),
+            DiagonalizationResult::NotDiagonalizable { analysis } => Ok(json!({
+                "result": "Not diagonalizable over Q",
+                "status": "not_diagonalizable_over_q",
+                "eigenvalues": analysis.eigenvalues.iter().map(eigenvalue_json).collect::<Vec<_>>(),
+                "characteristic_polynomial": polynomial_json(&analysis.characteristic_polynomial)
+            })),
+            DiagonalizationResult::NotSplit { analysis } => Ok(json!({
+                "result": "Not diagonalizable over Q: the characteristic polynomial does not split over Q",
+                "status": "not_split_over_q",
+                "eigenvalues": analysis.eigenvalues.iter().map(eigenvalue_json).collect::<Vec<_>>(),
+                "remaining_factor": analysis.remaining_factor.as_ref().map(polynomial_json),
+                "characteristic_polynomial": polynomial_json(&analysis.characteristic_polynomial)
+            })),
+            DiagonalizationResult::SearchLimit { analysis } => Ok(json!({
+                "result": "Rational eigenvalue search reached its bound; diagonalization was not decided",
+                "status": "rational_root_search_bounded",
+                "eigenvalues": analysis.eigenvalues.iter().map(eigenvalue_json).collect::<Vec<_>>(),
+                "characteristic_polynomial": polynomial_json(&analysis.characteristic_polynomial)
+            })),
+        },
+        "lu" => {
+            let result = rational
+                .expect("rational matrix parsed")
+                .lu_decomposition()
+                .map_err(|error| format!("LU decomposition failed: {error:?}."))?;
+            Ok(json!({
+                "result": "P · A = L · U",
+                "permutation": rational_matrix_json(&result.permutation),
+                "lower": rational_matrix_json(&result.lower),
+                "upper": rational_matrix_json(&result.upper),
+                "singular": result.singular
+            }))
+        }
+        "minimal-polynomial" => {
+            let result = rational
+                .expect("rational matrix parsed")
+                .minimal_polynomial()
+                .map_err(|error| format!("Minimal polynomial failed: {error:?}."))?;
+            Ok(json!({
+                "result": result.format_human("x"),
+                "minimal_polynomial": polynomial_json(&result)
+            }))
         }
         "hnf" => {
+            let rows = parse_integer_matrix(field(input, "matrix")?)?;
+            let integers = rows
+                .iter()
+                .map(|row| row.iter().copied().map(BigInt::from).collect::<Vec<_>>())
+                .collect::<Vec<_>>();
             let result = hermite_normal_form(&integers)
                 .map_err(|_| "Could not compute the Hermite normal form.".to_owned())?;
             let strings = result
@@ -2116,30 +2352,38 @@ fn run_matrix_tool(tool: &str, input: &Value) -> Result<Value, String> {
             Ok(json!({ "result": strings, "matrix": strings }))
         }
         "snf" => {
+            let rows = parse_integer_matrix(field(input, "matrix")?)?;
+            let integers = rows
+                .iter()
+                .map(|row| row.iter().copied().map(BigInt::from).collect::<Vec<_>>())
+                .collect::<Vec<_>>();
             let result = smith_normal_form_invariants(&integers)
                 .map_err(|_| "Could not compute the Smith invariants.".to_owned())?;
-            Ok(
-                json!({ "result": result.iter().map(ToString::to_string).collect::<Vec<_>>().join(", "), "invariants": result.iter().map(ToString::to_string).collect::<Vec<_>>() }),
-            )
+            Ok(json!({
+                "result": result.iter().map(ToString::to_string).collect::<Vec<_>>().join(", "),
+                "invariants": result.iter().map(ToString::to_string).collect::<Vec<_>>()
+            }))
         }
         "solve" => {
-            let rhs = parse_integer_list(field(input, "rhs")?)?
-                .into_iter()
-                .map(Rational::from_i64)
-                .collect::<Vec<_>>();
-            match solve(&rational, &rhs).map_err(|_| {
+            let rhs = parse_rational_list(field(input, "rhs")?)?;
+            match solve(rational.expect("rational matrix parsed"), &rhs).map_err(|_| {
                 "The right-hand-side vector has an incompatible dimension.".to_owned()
             })? {
                 LinearSystemSolution::None => Err("The system has no solutions.".to_owned()),
-                LinearSystemSolution::Unique(values) => Ok(
-                    json!({ "result": values.iter().map(ToString::to_string).collect::<Vec<_>>().join(", "), "kind": "unique", "solution": values.iter().map(ToString::to_string).collect::<Vec<_>>() }),
-                ),
+                LinearSystemSolution::Unique(values) => Ok(json!({
+                    "result": values.iter().map(ToString::to_string).collect::<Vec<_>>().join(", "),
+                    "kind": "unique",
+                    "solution": values.iter().map(ToString::to_string).collect::<Vec<_>>()
+                })),
                 LinearSystemSolution::Infinite {
                     particular,
                     nullspace_basis,
-                } => Ok(
-                    json!({ "result": particular.iter().map(ToString::to_string).collect::<Vec<_>>().join(", "), "kind": "infinite", "particular": particular.iter().map(ToString::to_string).collect::<Vec<_>>(), "nullspace_basis": rational_rows_json(&nullspace_basis) }),
-                ),
+                } => Ok(json!({
+                    "result": particular.iter().map(ToString::to_string).collect::<Vec<_>>().join(", "),
+                    "kind": "infinite",
+                    "particular": particular.iter().map(ToString::to_string).collect::<Vec<_>>(),
+                    "nullspace_basis": rational_rows_json(&nullspace_basis)
+                })),
             }
         }
         _ => unreachable!(),
@@ -2273,6 +2517,44 @@ mod tests {
         )
         .unwrap();
         assert_eq!(derivative["coefficients"], json!([]));
+    }
+
+    #[test]
+    fn exact_linear_algebra_tools_cover_operations_and_classifications() {
+        let sum = run_tool(
+            "matrix-add",
+            &json!({ "matrix": "1/2,1.5\n0,2", "other": "1/2,1/2\n1,3" }),
+        )
+        .unwrap();
+        assert_eq!(sum["matrix"], json!([["1", "2"], ["1", "5"]]));
+
+        let characteristic =
+            run_tool("charpoly", &json!({ "matrix": "2,1\n1,2" })).unwrap();
+        assert_eq!(
+            characteristic["characteristic_polynomial"]["coefficients"],
+            json!(["3", "-4", "1"])
+        );
+
+        let eigenvalues =
+            run_tool("eigenvalues", &json!({ "matrix": "2,1\n1,2" })).unwrap();
+        assert_eq!(eigenvalues["eigenvalues"].as_array().unwrap().len(), 2);
+        assert_eq!(eigenvalues["split_over_rationals"], true);
+
+        let diagonalized =
+            run_tool("diagonalize", &json!({ "matrix": "2,1\n1,2" })).unwrap();
+        assert_eq!(diagonalized["status"], "diagonalizable_over_q");
+        assert_eq!(diagonalized["p"].as_array().unwrap().len(), 2);
+
+        let jordan = run_tool("diagonalize", &json!({ "matrix": "1,1\n0,1" })).unwrap();
+        assert_eq!(jordan["status"], "not_diagonalizable_over_q");
+
+        let nonsplit = run_tool("diagonalize", &json!({ "matrix": "0,-1\n1,0" })).unwrap();
+        assert_eq!(nonsplit["status"], "not_split_over_q");
+
+        let lu = run_tool("lu", &json!({ "matrix": "2,1\n4,3" })).unwrap();
+        assert_eq!(lu["singular"], false);
+        let minimal = run_tool("minimal-polynomial", &json!({ "matrix": "2,1\n1,2" })).unwrap();
+        assert_eq!(minimal["minimal_polynomial"]["coefficients"], json!(["3", "-4", "1"]));
     }
 
     #[test]

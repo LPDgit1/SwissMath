@@ -159,6 +159,31 @@ fn finite_field_family_accepts_a_whole_matrix_from_stdin() {
 }
 
 #[test]
+fn exact_rational_matrix_family_covers_spectral_operations() {
+    let sum = run(
+        &["qmatrix", "add", "1/2,1.5;0,2", "1/2,1/2;1,3", "--json"],
+        None,
+    );
+    assert!(sum.status.success());
+    let value: Value = serde_json::from_slice(&sum.stdout).unwrap();
+    assert_eq!(
+        value["result"]["matrix"],
+        serde_json::json!([["1", "2"], ["1", "5"]])
+    );
+
+    let diagonalized = run(&["qmatrix", "diagonalize", "2,1;1,2", "--json"], None);
+    assert!(diagonalized.status.success());
+    let value: Value = serde_json::from_slice(&diagonalized.stdout).unwrap();
+    assert_eq!(value["result"]["status"], "diagonalizable_over_q");
+    assert_eq!(value["result"]["p"].as_array().unwrap().len(), 2);
+
+    let nonsplit = run(&["qmatrix", "diagonalize", "0,-1;1,0", "--json"], None);
+    assert!(nonsplit.status.success());
+    let value: Value = serde_json::from_slice(&nonsplit.stdout).unwrap();
+    assert_eq!(value["result"]["status"], "not_split_over_q");
+}
+
+#[test]
 fn recurrence_and_group_commands_have_exact_structured_results() {
     let recurrence = run(
         &["recurrence", "nth", "101", "0,1", "1,1", "10", "--json"],

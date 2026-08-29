@@ -30,6 +30,9 @@ because the public deployment may lag the source repository.
 - Core v0.6 research primitives: extended GCD, p-adic valuation, Möbius,
   radical, squarefree test, divisor count/sum/enumeration, prime navigation,
   and exact modular rational reconstruction;
+- exact rational linear algebra over ℚ: matrix arithmetic, transpose, trace,
+  powers, inverse, RREF, nullspace, characteristic/minimal polynomials,
+  eigenvalues, eigenspaces, diagonalization, and pivoted LU;
 - exact dense matrix arithmetic over prime fields Fp: addition, subtraction,
   multiplication, matrix-vector products, determinant, rank, RREF, solve,
   inverse, and kernel;
@@ -222,6 +225,8 @@ cargo build -p swissmath-cli --release
 target\release\swissmath.exe prime 1000000007
 target\release\swissmath.exe factor 360 --json
 target\release\swissmath.exe matrix det 5 "1,2;3,4" --json
+target\release\swissmath.exe qmatrix diagonalize "2,1;1,2" --json
+target\release\swissmath.exe qmatrix charpoly "1,2;3,4" --json
 target\release\swissmath.exe polynomial derivative 5 "0,0,0,0,0,1" --json
 target\release\swissmath.exe recurrence nth 1000000007 "0,1" "1,1" 1000000000000000000 --json
 target\release\swissmath.exe group primitive-root 17 --json

@@ -87,11 +87,24 @@ const catalog = {
   'linear-algebra': {
     title: 'Exact linear algebra',
     tools: [
-      t('det', 'Determinant', 'Computes the integer determinant using Bareiss elimination.', 'Rows separated by newlines or semicolons', [f('matrix', 'Matrix', '2, 4\n6, 8', '', 'textarea')]),
+      t('det', 'Determinant', 'Computes the exact determinant over ℚ.', 'Rows separated by newlines or semicolons; entries may be fractions.', [f('matrix', 'Matrix', '2, 4\n6, 8', 'Use integers, decimals, or a/b fractions.', 'textarea')]),
       t('rank', 'Exact rank', 'Computes rank without floating-point conversion.', 'Accepts rectangular matrices', [f('matrix', 'Matrix', '1, 2, 3\n2, 4, 6', '', 'textarea')]),
       t('solve', 'Linear system', 'Distinguishes unique, no, and infinitely many solutions.', 'Matrix A and vector b are entered separately', [f('matrix', 'Matrix A', '2, 1\n1, -1', '', 'textarea'), f('rhs', 'Vector b', '5, 1')]),
       t('rref', 'Reduced row-echelon form', 'Computes the exact RREF over ℚ.', 'Fractions remain normalized', [f('matrix', 'Matrix', '1, 2, 1\n2, 4, 3', '', 'textarea')]),
       t('nullspace', 'Nullspace', 'Returns an exact rational basis of the nullspace.', 'Checks A·v=0 for every vector', [f('matrix', 'Matrix', '1, 2, 3\n2, 4, 6', '', 'textarea')]),
+      t('matrix-add', 'Matrix addition', 'Adds two exact matrices entry by entry.', 'The matrices must have the same dimensions.', [f('matrix', 'Matrix A', '1, 2\n3, 4', '', 'textarea'), f('other', 'Matrix B', '4, 3\n2, 1', '', 'textarea')]),
+      t('matrix-sub', 'Matrix subtraction', 'Subtracts two exact matrices entry by entry.', 'The matrices must have the same dimensions.', [f('matrix', 'Matrix A', '1, 2\n3, 4', '', 'textarea'), f('other', 'Matrix B', '4, 3\n2, 1', '', 'textarea')]),
+      t('matrix-mul', 'Matrix multiplication', 'Multiplies compatible exact matrices over ℚ.', 'The columns of A must equal the rows of B.', [f('matrix', 'Matrix A', '1, 2\n3, 4', '', 'textarea'), f('other', 'Matrix B', '4, 3\n2, 1', '', 'textarea')]),
+      t('transpose', 'Transpose', 'Swaps the rows and columns of an exact matrix.', 'Works for rectangular matrices.', [f('matrix', 'Matrix', '1, 2, 3\n4, 5, 6', '', 'textarea')]),
+      t('trace', 'Trace', 'Sums the diagonal entries of a square exact matrix.', 'Only square matrices have a trace.', [f('matrix', 'Matrix', '1, 2\n3, 4', '', 'textarea')]),
+      t('power', 'Matrix power', 'Computes an exact non-negative integer matrix power.', 'Example: A³; exponent 0 returns the identity.', [f('matrix', 'Matrix', '1, 2\n3, 4', '', 'textarea'), f('exponent', 'Exponent', '3')]),
+      t('inverse', 'Matrix inverse', 'Computes the exact inverse of a nonsingular square matrix.', 'Fractions are kept exact; singular matrices are rejected.', [f('matrix', 'Matrix', '1, 2\n3, 4', '', 'textarea')]),
+      t('charpoly', 'Characteristic polynomial', 'Computes det(xI−A) exactly over ℚ.', 'The polynomial is shown in ascending coefficient convention.', [f('matrix', 'Matrix', '1, 2\n3, 4', '', 'textarea')]),
+      t('eigenvalues', 'Eigenvalues and eigenspaces', 'Finds rational eigenvalues, algebraic/geometric multiplicities, and exact eigenspace bases.', 'Non-rational factors are reported instead of approximated.', [f('matrix', 'Matrix', '2, 1\n1, 2', '', 'textarea')]),
+      t('eigenspace', 'Eigenspace', 'Computes an exact basis for ker(A−λI).', 'Enter a rational eigenvalue λ.', [f('matrix', 'Matrix', '2, 1\n1, 2', '', 'textarea'), f('eigenvalue', 'Eigenvalue λ', '3')]),
+      t('diagonalize', 'Diagonalization', 'Classifies and, when possible, computes A=PDP⁻¹ over ℚ.', 'Non-split or insufficient-eigenspace cases are labelled explicitly.', [f('matrix', 'Matrix', '2, 1\n1, 2', '', 'textarea')]),
+      t('lu', 'LU decomposition', 'Computes an exact pivoted decomposition P·A=L·U.', 'The singular flag identifies a zero pivot.', [f('matrix', 'Matrix', '2, 1\n4, 3', '', 'textarea')]),
+      t('minimal-polynomial', 'Minimal polynomial', 'Finds the lowest-degree monic polynomial p with p(A)=0.', 'Computed by exact linear dependence of matrix powers.', [f('matrix', 'Matrix', '2, 1\n1, 2', '', 'textarea')]),
       t('hnf', 'Hermite normal form', 'Computes an HNF for integer matrices using unimodular row operations.', 'Domain: integer matrices', [f('matrix', 'Matrix', '2, 4\n6, 8', '', 'textarea')]),
       t('snf', 'Smith invariants', 'Computes the non-zero diagonal factors of the Smith normal form.', 'Each invariant divides the next', [f('matrix', 'Matrix', '2, 4\n6, 8', '', 'textarea')]),
     ],
@@ -154,6 +167,24 @@ const cliCommands = {
   'divisor-count': ['divisor-count', 'n'], 'divisor-sum': ['divisor-sum', 'n'],
   sqrtmod: ['sqrtmod', 'a', 'modulus'], 'integer-analysis': ['analyze', 'n'],
   'linear-congruence': ['congruence', 'a', 'b', 'modulus'],
+  det: ['qmatrix', '=det', 'matrix'],
+  rank: ['qmatrix', '=rank', 'matrix'],
+  rref: ['qmatrix', '=rref', 'matrix'],
+  nullspace: ['qmatrix', '=nullspace', 'matrix'],
+  solve: ['qmatrix', '=solve', 'matrix', 'rhs'],
+  'matrix-add': ['qmatrix', '=add', 'matrix', 'other'],
+  'matrix-sub': ['qmatrix', '=sub', 'matrix', 'other'],
+  'matrix-mul': ['qmatrix', '=mul', 'matrix', 'other'],
+  transpose: ['qmatrix', '=transpose', 'matrix'],
+  trace: ['qmatrix', '=trace', 'matrix'],
+  power: ['qmatrix', '=power', 'matrix', 'exponent'],
+  inverse: ['qmatrix', '=inverse', 'matrix'],
+  charpoly: ['qmatrix', '=charpoly', 'matrix'],
+  eigenvalues: ['qmatrix', '=eigenvalues', 'matrix'],
+  eigenspace: ['qmatrix', '=eigenspace', 'matrix', 'eigenvalue'],
+  diagonalize: ['qmatrix', '=diagonalize', 'matrix'],
+  lu: ['qmatrix', '=lu', 'matrix'],
+  'minimal-polynomial': ['qmatrix', '=minimal-polynomial', 'matrix'],
   'fp-matrix-add': ['matrix', '=add', 'prime', 'matrix', 'other'],
   'fp-matrix-sub': ['matrix', '=sub', 'prime', 'matrix', 'other'],
   'fp-matrix-mul': ['matrix', '=mul', 'prime', 'matrix', 'other'],
@@ -418,6 +449,34 @@ function matrixViewsForResult(result) {
     ...(Array.isArray(result.particular) ? [{ label: 'Particular solution', rows: column(result.particular) }] : []),
     ...(Array.isArray(result.kernel_basis) ? [{ label: 'Kernel basis', rows: result.kernel_basis }] : []),
   ];
+  if (['matrix-add', 'matrix-sub', 'matrix-mul', 'transpose', 'power', 'inverse'].includes(currentTool.id) && Array.isArray(result.matrix)) {
+    return [{ label: 'Matrix result', rows: result.matrix }];
+  }
+  if (currentTool.id === 'eigenspace' && Array.isArray(result.basis)) {
+    return [{ label: `Eigenspace basis for λ = ${result.eigenvalue}`, rows: result.basis }];
+  }
+  if (currentTool.id === 'eigenvalues' && Array.isArray(result.eigenvalues)) {
+    return result.eigenvalues
+      .filter((eigenvalue) => Array.isArray(eigenvalue.eigenspace) && eigenvalue.eigenspace.length)
+      .map((eigenvalue) => ({
+        label: `Eigenspace for λ = ${eigenvalue.value} (algebraic ${eigenvalue.algebraic_multiplicity}, geometric ${eigenvalue.geometric_multiplicity})`,
+        rows: eigenvalue.eigenspace,
+      }));
+  }
+  if (currentTool.id === 'diagonalize' && Array.isArray(result.p) && Array.isArray(result.d) && Array.isArray(result.inverse)) {
+    return [
+      { label: 'P (eigenvectors)', rows: result.p },
+      { label: 'D (diagonal)', rows: result.d },
+      { label: 'P⁻¹', rows: result.inverse },
+    ];
+  }
+  if (currentTool.id === 'lu' && Array.isArray(result.permutation) && Array.isArray(result.lower) && Array.isArray(result.upper)) {
+    return [
+      { label: 'P (permutation)', rows: result.permutation },
+      { label: 'L (lower triangular)', rows: result.lower },
+      { label: 'U (upper triangular)', rows: result.upper },
+    ];
+  }
   if (currentTool.id === 'rref' && Array.isArray(result.matrix)) return [{ label: 'Reduced row-echelon form', rows: result.matrix }];
   if (currentTool.id === 'nullspace' && Array.isArray(result.basis)) return [{ label: 'Nullspace basis', rows: result.basis }];
   if (currentTool.id === 'hnf' && Array.isArray(result.matrix)) return [{ label: 'Hermite normal form', rows: result.matrix }];
@@ -497,7 +556,10 @@ function renderScalar(result) {
   const main = mainResult(result);
   const hasMatrix = renderMatrixViews(matrixViewsForResult(result));
   primary.textContent = displayValue(main);
-  const hiddenMatrixKeys = new Set(['result', 'matrix', 'basis', 'nullspace_basis', 'solution', 'particular', 'invariants', 'values', 'preview']);
+  const hiddenMatrixKeys = new Set([
+    'result', 'matrix', 'basis', 'eigenspace', 'eigenvalues', 'nullspace_basis', 'solution', 'particular',
+    'invariants', 'values', 'preview', 'p', 'd', 'inverse', 'permutation', 'lower', 'upper',
+  ]);
   const supporting = Object.fromEntries(Object.entries(result).filter(([key]) => !hiddenMatrixKeys.has(key)));
   details.textContent = Object.entries(supporting).map(([key, value]) => `${key}: ${formatDetailValue(value)}`).join('\n');
   primary.classList.toggle('hidden', Boolean(hasMatrix));

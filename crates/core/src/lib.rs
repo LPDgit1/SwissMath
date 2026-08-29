@@ -49,8 +49,10 @@ pub use fractions::{
     rationalize_decimal,
 };
 pub use linear_algebra::{
-    LinearSystemSolution, MatrixError, RationalMatrix, RrefResult, determinant_bareiss,
-    hermite_normal_form, nullspace, rank, rref, smith_normal_form_invariants, solve,
+    DiagonalizationResult, Eigenvalue, EigenvalueAnalysis, LinearSystemSolution, LuDecomposition,
+    MatrixError, RationalMatrix, RrefResult, characteristic_polynomial, determinant_bareiss,
+    diagonalize, eigenvalue_analysis, hermite_normal_form, lu_decomposition, minimal_polynomial,
+    nullspace, rank, rref, smith_normal_form_invariants, solve,
 };
 pub use modular::{ArithmeticError, ModCtx, gcd, inv_mod, reduce_i128};
 pub use modulus::Modulus;

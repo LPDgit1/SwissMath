@@ -10,6 +10,10 @@ import init, {
 const f = (name, label, value, help = '', type = 'text') => ({ name, label, value, help, type });
 const s = (name, label, value, options, help = '') => ({ name, label, value, options, help, type: 'select' });
 const t = (id, name, description, example, fields, command = 'tool') => ({ id, name, description, example, fields, command });
+const c = (operation, name, description, example, fields) => ({
+  ...t(`modular-combinatorics-${operation}`, name, description, example, fields),
+  combinatoricsOperation: operation,
+});
 
 const catalog = {
   arithmetic: {
@@ -119,17 +123,10 @@ const catalog = {
   combinatorics: {
     title: 'Modular combinatorics',
     tools: [
-      t('modular-combinatorics', 'Modular combinatorics', 'Computes factorial and binomial residues or p-adic valuations without constructing gigantic integers.', 'Uses Legendre, Kummer, Lucas, and Wilson reductions over a prime field.', [
-        s('operation', 'Operation', 'binomial-mod', [
-          ['binomial-mod', 'Binomial C(n,k) mod p'],
-          ['factorial-mod', 'Factorial n! mod p'],
-          ['factorial-valuation', 'Factorial valuation vₚ(n!)'],
-          ['binomial-valuation', 'Binomial valuation vₚ(C(n,k))'],
-        ]),
-        f('prime', 'Prime p', '7'),
-        f('n', 'Integer n', '10'),
-        f('k', 'Integer k', '3'),
-      ]),
+      c('binomial-mod', 'Binomial modulo p', 'Computes C(n,k) modulo a prime without constructing the full binomial coefficient.', 'Example: C(10,3) mod 7 = 1', [f('prime', 'Prime p', '7'), f('n', 'Integer n', '10'), f('k', 'Integer k', '3')]),
+      c('factorial-mod', 'Factorial modulo p', 'Computes n! modulo a prime using modular reductions.', 'Example: 10! mod 7 = 0', [f('prime', 'Prime p', '7'), f('n', 'Integer n', '10')]),
+      c('factorial-valuation', 'Factorial valuation', 'Computes the exact p-adic valuation vₚ(n!).', 'Example: v₇(10!) = 1', [f('prime', 'Prime p', '7'), f('n', 'Integer n', '10')]),
+      c('binomial-valuation', 'Binomial valuation', 'Computes the exact p-adic valuation vₚ(C(n,k)).', 'Example: v₇(C(10,3)) = 0', [f('prime', 'Prime p', '7'), f('n', 'Integer n', '10'), f('k', 'Integer k', '3')]),
     ],
   },
   discovery: {
@@ -350,6 +347,9 @@ function decode(call, payload) {
 }
 
 function execute(tool, input) {
+  if (tool.combinatoricsOperation) {
+    return decode(wasm_run_tool, { tool: 'modular-combinatorics', input: { ...input, operation: tool.combinatoricsOperation } });
+  }
   if (tool.command === 'tool') return decode(wasm_run_tool, { tool: tool.id, input });
   if (tool.command === 'modular') return decode(wasm_calculate_modular, input);
   if (tool.command === 'residues') return decode(wasm_calculate_residues, { ...input, left: input.left.split(',').map((value) => value.trim()), right: input.right.split(',').map((value) => value.trim()) });
@@ -454,6 +454,10 @@ function renderMatrixTable(rows) {
   return table;
 }
 
+function matrixCopyText(rows) {
+  return rows.map((row) => (Array.isArray(row) ? row : [row]).map(displayValue).join('\t')).join('\n');
+}
+
 function renderMatrixViews(views) {
   matrixResult.classList.add('hidden');
   matrixResult.replaceChildren();
@@ -463,8 +467,19 @@ function renderMatrixViews(views) {
     const heading = document.createElement('div');
     heading.className = 'matrix-view-title';
     heading.textContent = label;
+    const copyField = document.createElement('textarea');
+    copyField.className = 'matrix-copy-field';
+    copyField.readOnly = true;
+    copyField.wrap = 'off';
+    copyField.spellcheck = false;
+    copyField.rows = Math.min(Math.max(rows.length, 3), 8);
+    copyField.value = matrixCopyText(rows);
+    copyField.setAttribute('aria-label', `${label} copyable text`);
+    const copyHint = document.createElement('small');
+    copyHint.className = 'matrix-copy-hint';
+    copyHint.textContent = 'Tab-separated rows for easy copy and paste.';
     const table = renderMatrixTable(rows);
-    if (table) view.append(heading, table);
+    if (table) view.append(heading, copyField, copyHint, table);
     matrixResult.append(view);
   });
   if (!views.some(({ rows }) => Array.isArray(rows) && rows.length)) return false;
@@ -615,10 +630,10 @@ function cliCommand() {
     if (input.reconstruction === 'rational' && input.max_numerator && input.max_denominator) values.push(input.max_numerator, input.max_denominator);
     return `${values.map(shellValue).join(' ')} < residues.txt`;
   }
-  if (currentTool.id === 'modular-combinatorics' && currentResult.records.length === 1) {
+  if (currentTool.combinatoricsOperation && currentResult.records.length === 1) {
     const input = currentResult.input;
-    const values = ['swissmath', 'comb', input.operation, input.prime, input.n];
-    if (input.operation.startsWith('binomial-')) values.push(input.k);
+    const values = ['swissmath', 'comb', currentTool.combinatoricsOperation, input.prime, input.n];
+    if (currentTool.combinatoricsOperation.startsWith('binomial-')) values.push(input.k);
     return values.map(shellValue).join(' ');
   }
   const mapping = cliCommands[currentTool.id];
